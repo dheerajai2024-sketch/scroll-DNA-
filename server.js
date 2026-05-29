@@ -20,11 +20,6 @@ if (!GROQ_API_KEY) {
   process.exit(1);
 }
 
-// Use /tmp for uploads on Render (disk is ephemeral)
-const UPLOADS_DIR = process.env.RENDER ? '/tmp/uploads' : path.join(__dirname, 'uploads');
-if (!fs.existsSync(UPLOADS_DIR)) {
-  fs.mkdirSync(UPLOADS_DIR, { recursive: true });
-}
 
 // ==========================================
 // IN-MEMORY STORAGE (replace with DB later)
