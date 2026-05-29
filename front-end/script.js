@@ -1,1475 +1,1165 @@
 /**
- * ==========================================
- * SCROLL DNA - script.js
- * Admin Notifications + Profile Cards + Queue
- * ==========================================
+ * SCROLL DNA — script.js
+ * Complete rewrite: bug fixes + new features
+ * - Working download (html2canvas)
+ * - Real share (Web Share API + clipboard fallback)
+ * - Animated stat counters on landing
+ * - Working filter system
+ * - Fixed admin tab rendering
+ * - Fixed card state persistence
+ * - Working re-roll with point deduction
+ * - SSE with auto-reconnect
  */
 
-// ==========================================
-// APP STATE
-// ==========================================
-const AppState = {
-  currentPage: 'landing',
-  soundEnabled: true,
-  cards: [],
-  uploadedFiles: [],
-  profilePic: null,
-  streak: parseInt(localStorage.getItem('scroll_dna_streak') || '0'),
-  lastGenerated: localStorage.getItem('scroll_dna_last_generated') || null,
-  points: parseInt(localStorage.getItem('scroll_dna_points') || '0'),
-  generationInProgress: false,
-  serverUrl: window.location.origin,
-  adminToken: localStorage.getItem('scroll_dna_admin_token') || null,
-  notifications: [],
-  unreadCount: 0,
-  eventSource: null
-};
+'use strict';
 
-// ==========================================
-// AUDIO ENGINE
-// ==========================================
-const AudioEngine = {
-  ctx: null,
-  init() {
-    if (!this.ctx) this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+// ============================================================
+// STATE
+// ============================================================
+const State = {
+  page: 'landing',
+  sound: true,
+  cards: [],
+  files: [],
+  profilePic: null,
+  points: 0,
+  streak: 0,
+  lastGen: null,
+  generating: false,
+  adminToken: null,
+  notifications: [],
+  unreadNotifs: 0,
+  sse: null,
+  serverUrl: window.location.origin,
+
+  load() {
+    try {
+      this.cards   = JSON.parse(localStorage.getItem('sdna_cards') || '[]');
+      this.points  = parseInt(localStorage.getItem('sdna_points') || '0');
+      this.streak  = parseInt(localStorage.getItem('sdna_streak') || '0');
+      this.lastGen = localStorage.getItem('sdna_lastgen') || null;
+      this.adminToken = localStorage.getItem('sdna_admin') || null;
+      this.sound   = localStorage.getItem('sdna_sound') !== 'false';
+    } catch(e) {}
   },
-  playTone(freq, type = 'sine', duration = 0.15, vol = 0.08) {
-    if (!AppState.soundEnabled || !this.ctx) return;
-    const osc = this.ctx.createOscillator();
-    const gain = this.ctx.createGain();
-    osc.type = type;
-    osc.frequency.setValueAtTime(freq, this.ctx.currentTime);
-    gain.gain.setValueAtTime(vol, this.ctx.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + duration);
-    osc.connect(gain);
-    gain.connect(this.ctx.destination);
-    osc.start();
-    osc.stop(this.ctx.currentTime + duration);
-  },
-  click() { this.playTone(800, 'sine', 0.08, 0.04); },
-  hover() { this.playTone(600, 'sine', 0.06, 0.02); },
-  success() {
-    this.playTone(523, 'sine', 0.2, 0.08);
-    setTimeout(() => this.playTone(659, 'sine', 0.2, 0.08), 100);
-    setTimeout(() => this.playTone(784, 'sine', 0.3, 0.08), 200);
-  },
-  legendary() {
-    [523, 659, 784, 1047, 1319].forEach((f, i) => {
-      setTimeout(() => this.playTone(f, 'square', 0.4, 0.06), i * 120);
-    });
-  },
-  error() { this.playTone(200, 'sawtooth', 0.3, 0.06); },
-  flip() { this.playTone(440, 'triangle', 0.25, 0.05); },
-  notify() {
-    this.playTone(880, 'sine', 0.1, 0.1);
-    setTimeout(() => this.playTone(1100, 'sine', 0.2, 0.1), 100);
+  save() {
+    localStorage.setItem('sdna_cards', JSON.stringify(this.cards));
+    localStorage.setItem('sdna_points', this.points);
+    localStorage.setItem('sdna_streak', this.streak);
+    localStorage.setItem('sdna_lastgen', this.lastGen || '');
+    localStorage.setItem('sdna_admin', this.adminToken || '');
+    localStorage.setItem('sdna_sound', this.sound);
   }
 };
 
-// ==========================================
-// DOM CACHE
-// ==========================================
-const DOM = {
-  soundToggle: () => document.getElementById('soundToggle'),
-  cardCount: () => document.getElementById('cardCount'),
-  points: () => document.getElementById('points'),
-  streak: () => document.getElementById('streak'),
-  processingOverlay: () => document.getElementById('processingOverlay'),
-  progressFill: () => document.getElementById('progressFill'),
-  progressText: () => document.getElementById('progressText'),
-  aiStatus: () => document.getElementById('aiStatus'),
-  queueStatus: () => document.getElementById('queueStatus'),
-  pages: {
-    landing: () => document.getElementById('landingPage'),
-    upload: () => document.getElementById('uploadPage'),
-    collection: () => document.getElementById('collectionPage'),
-    detail: () => document.getElementById('cardDetailPage'),
-    admin: () => document.getElementById('adminPage')
-  },
-  ctaButton: () => document.getElementById('ctaButton'),
-  instantCardBtn: () => document.getElementById('instantCardBtn'),
-  viewCardsBtn: () => document.getElementById('viewCardsBtn'),
-  dropZone: () => document.getElementById('dropZone'),
-  fileInput: () => document.getElementById('fileInput'),
-  fileList: () => document.getElementById('fileList'),
-  fileCount: () => document.getElementById('fileCount'),
-  uploadedFiles: () => document.getElementById('uploadedFiles'),
-  generateBtn: () => document.getElementById('generateBtn'),
-  clearBtn: () => document.getElementById('clearBtn'),
-  instantUploadBtn: () => document.getElementById('instantUploadBtn'),
-  usernameInput: () => document.getElementById('usernameInput'),
-  profileLinkInput: () => document.getElementById('profileLinkInput'),
-  profilePicInput: () => document.getElementById('profilePicInput'),
-  profilePicZone: () => document.getElementById('profilePicZone'),
-  profilePicPreview: () => document.getElementById('profilePicPreview'),
-  cardsGrid: () => document.getElementById('cardsGrid'),
-  totalCards: () => document.getElementById('totalCards'),
-  legendaryCount: () => document.getElementById('legendaryCount'),
-  totalPoints: () => document.getElementById('totalPoints'),
-  filterButtons: () => document.querySelectorAll('.filter-btn'),
-  cardDisplay: () => document.getElementById('cardDisplay'),
-  cardDetailInfo: () => document.getElementById('cardDetailInfo'),
-  shareCardBtn: () => document.getElementById('shareCardBtn'),
-  downloadCardBtn: () => document.getElementById('downloadCardBtn'),
-  rerollCardBtn: () => document.getElementById('rerollCardBtn'),
-  statsDetail: () => document.getElementById('statsDetail'),
-  navbarLogo: () => document.querySelector('.navbar-logo'),
-  // Admin
-  adminLogin: () => document.getElementById('adminLogin'),
-  adminContent: () => document.getElementById('adminContent'),
-  adminPassword: () => document.getElementById('adminPassword'),
-  adminLoginBtn: () => document.getElementById('adminLoginBtn'),
-  adminLogoutBtn: () => document.getElementById('adminLogoutBtn'),
-  adminOnlineToggle: () => document.getElementById('adminOnlineToggle'),
-  adminTabs: () => document.querySelectorAll('.admin-tab'),
-  adminUploadsList: () => document.getElementById('adminUploadsList'),
-  adminCardsList: () => document.getElementById('adminCardsList'),
-  pendingList: () => document.getElementById('pendingList'),
-  notificationBell: () => document.getElementById('notificationBell'),
-  bellCount: () => document.getElementById('bellCount'),
-  createCardBtn: () => document.getElementById('createCardBtn')
+// ============================================================
+// AUDIO
+// ============================================================
+let audioCtx = null;
+function getAudio() {
+  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  return audioCtx;
+}
+function playTone(freq, type='sine', dur=0.15, vol=0.06) {
+  if (!State.sound) return;
+  try {
+    const ctx = getAudio();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = type;
+    osc.frequency.setValueAtTime(freq, ctx.currentTime);
+    gain.gain.setValueAtTime(vol, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + dur);
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start();
+    osc.stop(ctx.currentTime + dur);
+  } catch(e) {}
+}
+const SFX = {
+  click:   () => playTone(800,'sine',0.08,0.04),
+  hover:   () => playTone(600,'sine',0.06,0.02),
+  success: () => { playTone(523,'sine',0.2,0.07); setTimeout(()=>playTone(659,'sine',0.2,0.07),100); setTimeout(()=>playTone(784,'sine',0.3,0.07),200); },
+  legendary:()=> { [523,659,784,1047,1319].forEach((f,i)=>setTimeout(()=>playTone(f,'square',0.4,0.05),i*110)); },
+  error:   () => playTone(200,'sawtooth',0.3,0.06),
+  flip:    () => playTone(440,'triangle',0.25,0.05),
+  notify:  () => { playTone(880,'sine',0.1,0.08); setTimeout(()=>playTone(1100,'sine',0.2,0.08),100); }
 };
 
-// ==========================================
-// UTILITIES
-// ==========================================
-const Utils = {
-  generateId() {
-    return 'card_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+function toggleSound() {
+  State.sound = !State.sound;
+  State.save();
+  const btn = document.getElementById('soundBtn');
+  if (btn) btn.textContent = State.sound ? '🔊' : '🔇';
+  if (State.sound) SFX.click();
+}
+
+// ============================================================
+// TOAST
+// ============================================================
+function toast(msg, type='info', duration=3500) {
+  const wrap = document.getElementById('toasts');
+  if (!wrap) return;
+  const el = document.createElement('div');
+  el.className = `toast ${type}`;
+  el.textContent = msg;
+  wrap.appendChild(el);
+  requestAnimationFrame(() => { requestAnimationFrame(() => el.classList.add('show')); });
+  setTimeout(() => {
+    el.classList.remove('show');
+    setTimeout(() => el.remove(), 400);
+  }, duration);
+}
+
+// ============================================================
+// CONFETTI
+// ============================================================
+function confetti(count=80, colors=['#7c6aff','#ff6b9d','#00d4ff','#f5a623','#22c55e']) {
+  for (let i=0; i<count; i++) {
+    const el = document.createElement('div');
+    el.className = 'confetti-piece';
+    const color = colors[Math.floor(Math.random()*colors.length)];
+    const size = 6 + Math.random()*8;
+    const angle = Math.random()*360;
+    const vx = (Math.random()-0.5)*200;
+    const vy = -(100+Math.random()*200);
+    el.style.cssText = `
+      width:${size}px;height:${size}px;background:${color};
+      left:${40+Math.random()*20}%;top:50%;
+      border-radius:${Math.random()>0.5?'50%':'2px'};
+      transform:rotate(${angle}deg);
+    `;
+    document.body.appendChild(el);
+    el.animate([
+      { transform:`translate(0,0) rotate(${angle}deg)`, opacity:1 },
+      { transform:`translate(${vx}px,${vy}px) rotate(${angle+720}deg)`, opacity:0 }
+    ], { duration:900+Math.random()*800, easing:'cubic-bezier(0.25,0.46,0.45,0.94)' }).onfinish = () => el.remove();
+  }
+}
+
+// ============================================================
+// UTILS
+// ============================================================
+const Util = {
+  id: () => 'card_' + Date.now() + '_' + Math.random().toString(36).slice(2,9),
+  rand: (min,max) => Math.random()*(max-min)+min,
+  randInt: (min,max) => Math.floor(Math.random()*(max-min+1))+min,
+  clamp: (v,min,max) => Math.min(Math.max(v,min),max),
+  fmtDate: d => new Date(d).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric',hour:'2-digit',minute:'2-digit'}),
+
+  getRarityData(rarity) {
+    const map = {
+      common:    { weight:1,   gradient:'linear-gradient(135deg,#4b5563,#2d3142)', border:'#6b7280', glow:'rgba(107,114,128,0.3)' },
+      rare:      { weight:10,  gradient:'linear-gradient(135deg,#1e3a8a,#1e40af)', border:'#3b82f6', glow:'rgba(59,130,246,0.4)'  },
+      epic:      { weight:25,  gradient:'linear-gradient(135deg,#4c1d95,#6b21a8)', border:'#a855f7', glow:'rgba(168,85,247,0.4)'  },
+      legendary: { weight:100, gradient:'linear-gradient(135deg,#92400e,#b45309)', border:'#f59e0b', glow:'rgba(245,158,11,0.5)'  }
+    };
+    return map[rarity] || map.common;
   },
-  randomBetween(min, max) { return Math.random() * (max - min) + min; },
-  randomInt(min, max) { return Math.floor(Math.random() * (max - min + 1)) + min; },
-  formatDate(date) {
-    return new Date(date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+
+  rollRarity() {
+    const r = Math.random();
+    if (r<0.01)  return 'legendary';
+    if (r<0.08)  return 'epic';
+    if (r<0.30)  return 'rare';
+    return 'common';
   },
-  clamp(val, min, max) { return Math.min(Math.max(val, min), max); },
-  saveState() {
-    localStorage.setItem('scroll_dna_cards', JSON.stringify(AppState.cards));
-    localStorage.setItem('scroll_dna_points', AppState.points.toString());
-    localStorage.setItem('scroll_dna_streak', AppState.streak.toString());
-    localStorage.setItem('scroll_dna_last_generated', AppState.lastGenerated || '');
-    localStorage.setItem('scroll_dna_admin_token', AppState.adminToken || '');
-  },
-  loadState() {
-    try {
-      AppState.cards = JSON.parse(localStorage.getItem('scroll_dna_cards') || '[]');
-      AppState.adminToken = localStorage.getItem('scroll_dna_admin_token') || null;
-    } catch (e) { console.warn('State load failed', e); }
-  },
-  getRarity() {
-    const roll = Math.random();
-    if (roll < 0.01) return { type: 'legendary', weight: 100, color: 'linear-gradient(135deg, #d97706, #f59e0b)', border: '#fbbf24' };
-    if (roll < 0.08) return { type: 'epic', weight: 25, color: 'linear-gradient(135deg, #5b21b6, #6b21a8)', border: '#8b5cf6' };
-    if (roll < 0.30) return { type: 'rare', weight: 10, color: 'linear-gradient(135deg, #1e3a8a, #1e40af)', border: '#3b82f6' };
-    return { type: 'common', weight: 1, color: 'linear-gradient(135deg, #4b5563, #2d3142)', border: '#6b7280' };
-  },
+
   getGrade(score) {
-    if (score >= 9.5) return 'SS';
-    if (score >= 9.0) return 'S+';
-    if (score >= 8.5) return 'S';
-    if (score >= 8.0) return 'A+';
-    if (score >= 7.0) return 'A';
-    if (score >= 6.0) return 'B';
-    if (score >= 5.0) return 'C';
+    if (score>=9.8) return 'SS';
+    if (score>=9.5) return 'S+';
+    if (score>=9.0) return 'S';
+    if (score>=8.5) return 'A+';
+    if (score>=8.0) return 'A';
+    if (score>=7.0) return 'B';
+    if (score>=6.0) return 'C';
     return 'D';
   },
-  personalityNames: [
-    'Algorithm Whisperer', 'Midnight Scroller', 'Aesthetic Hustler', 'Meme Lord',
-    'Story Architect', 'Reel Addict', 'DM Slider', 'Filter Fanatic',
-    'Hashtag Hunter', 'Influencer in Training', 'Content Machine', 'Vibe Curator',
-    'Comment Section Hero', 'Like Collector', 'Trend Surfer', 'Pixel Perfectionist',
-    'Social Butterfly', 'Ghost Liker', 'Caption Poet', 'Grid Strategist'
+
+  names: [
+    'Algorithm Whisperer','Midnight Scroller','Aesthetic Hustler','Meme Lord',
+    'Story Architect','Reel Addict','DM Slider','Filter Fanatic',
+    'Hashtag Hunter','Influencer In Training','Content Machine','Vibe Curator',
+    'Comment Section Hero','Like Collector','Trend Surfer','Grid Strategist',
+    'Ghost Liker','Caption Poet','Pixel Perfectionist','Social Butterfly'
   ],
-  getPersonalityName() {
-    return this.personalityNames[Math.floor(Math.random() * this.personalityNames.length)];
-  }
-};
+  randName: () => Util.names[Math.floor(Math.random()*Util.names.length)],
 
-// ==========================================
-// TOAST NOTIFICATIONS
-// ==========================================
-const Toast = {
-  container: null,
-  init() {
-    this.container = document.createElement('div');
-    this.container.className = 'toast-container';
-    document.body.appendChild(this.container);
-  },
-  show(message, type = 'info', duration = 3000) {
-    if (!this.container) this.init();
-    const el = document.createElement('div');
-    const colors = {
-      info: 'linear-gradient(135deg, #6366f1, #4f46e5)',
-      success: 'linear-gradient(135deg, #10b981, #059669)',
-      error: 'linear-gradient(135deg, #ef4444, #dc2626)',
-      legendary: 'linear-gradient(135deg, #d97706, #f59e0b)',
-      notify: 'linear-gradient(135deg, #8b5cf6, #6366f1)'
+  mockCard(overrides={}) {
+    const rarity = Util.rollRarity();
+    const rd = Util.getRarityData(rarity);
+    const bonus = {legendary:0.8,epic:0.5,rare:0.3,common:0}[rarity];
+    const score = Util.clamp(Util.rand(5.5,9.0)+bonus, 5.0, 10.0);
+    const stats = {
+      creativity:  Util.randInt(55,99),
+      engagement:  Util.randInt(45,99),
+      consistency: Util.randInt(40,99),
+      virality:    Util.randInt(45,99),
+      aesthetic:   Util.randInt(50,99),
+      authenticity:Util.randInt(45,99)
     };
-    el.style.cssText = `
-      background: ${colors[type] || colors.info};
-      color: white; padding: 1rem 1.5rem; border-radius: 12px;
-      font-weight: 600; box-shadow: 0 10px 30px rgba(0,0,0,0.3);
-      transform: translateX(120%); transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-      max-width: 320px; word-break: break-word; margin-bottom: 10px;
-    `;
-    el.textContent = message;
-    this.container.appendChild(el);
-    requestAnimationFrame(() => el.style.transform = 'translateX(0)');
-    setTimeout(() => {
-      el.style.transform = 'translateX(120%)';
-      setTimeout(() => el.remove(), 400);
-    }, duration);
+    const name = Util.randName();
+    return {
+      id: Util.id(),
+      name, rarity,
+      rarityData: rd,
+      score: parseFloat(score.toFixed(1)),
+      grade: Util.getGrade(score),
+      stats,
+      description: `A ${rarity.toUpperCase()} DNA card representing exceptional ${Object.entries(stats).sort((a,b)=>b[1]-a[1])[0][0]} energy.`,
+      createdAt: new Date().toISOString(),
+      username: document.getElementById('inUsername')?.value || 'Anonymous',
+      profileLink: document.getElementById('inLink')?.value || '',
+      profilePicUrl: State.profilePic?.data || null,
+      source: 'mock',
+      ...overrides
+    };
   }
 };
 
-// ==========================================
-// CONFETTI
-// ==========================================
-const Confetti = {
-  fire(options = {}) {
-    const { particleCount = 100, spread = 70, origin = { y: 0.6 }, colors = ['#6366f1', '#ec4899', '#06b6d4', '#fbbf24', '#8b5cf6'] } = options;
-    for (let i = 0; i < particleCount; i++) {
-      const p = document.createElement('div');
-      const color = colors[Math.floor(Math.random() * colors.length)];
-      const angle = Math.random() * spread - spread / 2;
-      const velocity = 2 + Math.random() * 4;
-      const x = Math.sin(angle * Math.PI / 180) * velocity * 50;
-      const y = -Math.cos(angle * Math.PI / 180) * velocity * 50;
-      const size = 6 + Math.random() * 8;
-      const rotation = Math.random() * 360;
-      p.style.cssText = `
-        position: fixed; left: ${origin.x ? origin.x * 100 : 50}%; top: ${origin.y * 100}vh;
-        width: ${size}px; height: ${size}px; background: ${color};
-        border-radius: ${Math.random() > 0.5 ? '50%' : '2px'};
-        pointer-events: none; z-index: 10000;
-        transform: rotate(${rotation}deg);
-      `;
-      document.body.appendChild(p);
-      p.animate([
-        { transform: `translate(0,0) rotate(${rotation}deg)`, opacity: 1 },
-        { transform: `translate(${x}px, ${y + 200}px) rotate(${rotation + 720}deg)`, opacity: 0 }
-      ], { duration: 1000 + Math.random() * 1500, easing: 'cubic-bezier(0.25, 0.46, 0.45, 0.94)' }).onfinish = () => p.remove();
-    }
-  }
-};
+// ============================================================
+// NAV STATS
+// ============================================================
+function updateNavStats() {
+  const cc = document.getElementById('statCards');
+  const pp = document.getElementById('statPts');
+  const ss = document.getElementById('statStreak');
+  if (cc) cc.textContent = State.cards.length;
+  if (pp) pp.textContent = State.points.toLocaleString();
+  if (ss) ss.textContent = State.streak;
+}
 
-// ==========================================
+// ============================================================
 // NAVIGATION
-// ==========================================
+// ============================================================
 const Navigation = {
-  history: [],
-  navigateTo(pageId, push = true) {
-    if (AppState.generationInProgress && pageId !== 'detail') {
-      Toast.show('Generation in progress... please wait!', 'info');
-      return;
+  go(pageId) {
+    if (State.generating && pageId !== 'detail') {
+      toast('Generation in progress — please wait', 'info'); return;
     }
-    Object.values(DOM.pages).forEach(pageFn => {
-      const page = pageFn();
-      if (page) { page.classList.remove('active'); page.style.display = 'none'; }
+    document.querySelectorAll('.page').forEach(p => {
+      p.classList.remove('active');
+      p.style.display = '';
+      p.classList.add('hidden');
+      p.style.display = 'none';
     });
-    const target = DOM.pages[pageId] ? DOM.pages[pageId]() : null;
-    if (target) {
-      target.style.display = 'block';
-      requestAnimationFrame(() => target.classList.add('active'));
-      AppState.currentPage = pageId;
-      window.scrollTo({ top: 0, behavior: 'smooth' });
-      if (push) this.history.push(pageId);
-      if (pageId === 'collection') Collection.render();
-      if (pageId === 'landing') Landing.init();
-      if (pageId === 'detail') CardDetail.render();
-      if (pageId === 'admin') Admin.init();
-      AudioEngine.click();
-    }
-  },
-  back() {
-    if (this.history.length > 1) {
-      this.history.pop();
-      this.navigateTo(this.history[this.history.length - 1], false);
-    } else {
-      this.navigateTo('landing');
-    }
+    const target = document.getElementById('pg-' + pageId);
+    if (!target) return;
+    target.style.display = 'block';
+    target.classList.remove('hidden');
+    requestAnimationFrame(() => target.classList.add('active'));
+    State.page = pageId;
+    window.scrollTo({ top:0, behavior:'smooth' });
+    SFX.click();
+
+    if (pageId === 'landing')    Landing.init();
+    if (pageId === 'collection') Collection.render();
+    if (pageId === 'detail')     Detail.render();
+    if (pageId === 'admin')      Admin.init();
   }
 };
+window.Navigation = Navigation;
 
-// ==========================================
-// LANDING PAGE
-// ==========================================
+// ============================================================
+// LANDING
+// ============================================================
 const Landing = {
-  init() { this.animateCounters(); },
+  countersRan: false,
+  init() {
+    if (!this.countersRan) { this.animateCounters(); this.countersRan = true; }
+  },
   animateCounters() {
-    const stats = [
-      { el: document.querySelector('.stats-section .stat-item:nth-child(1) h3'), target: 2400000 },
-      { el: document.querySelector('.stats-section .stat-item:nth-child(2) h3'), target: 847000 },
-      { el: document.querySelector('.stats-section .stat-item:nth-child(3) h3'), target: 156 },
-      { el: document.querySelector('.stats-section .stat-item:nth-child(4) h3'), target: 2 }
-    ];
-    stats.forEach(({ el, target }) => {
-      if (!el) return;
-      let current = 0;
-      const increment = target / 60;
-      const format = (n) => {
-        if (n >= 1000000) return (n / 1000000).toFixed(1) + 'M';
-        if (n >= 1000) return (n / 1000).toFixed(0) + 'K';
-        return n.toString();
+    document.querySelectorAll('.sb-num').forEach(el => {
+      const target = parseInt(el.dataset.target || '0');
+      const duration = 1800;
+      const start = performance.now();
+      const fmt = n => n>=1000000 ? (n/1000000).toFixed(1)+'M' : n>=1000 ? Math.round(n/1000)+'K' : n.toString();
+      const tick = (now) => {
+        const t = Math.min(1, (now-start)/duration);
+        const ease = 1-Math.pow(1-t,3);
+        el.textContent = fmt(Math.floor(ease*target));
+        if (t<1) requestAnimationFrame(tick);
       };
-      const timer = setInterval(() => {
-        current += increment;
-        if (current >= target) { current = target; clearInterval(timer); }
-        el.textContent = format(Math.floor(current));
-      }, 30);
+      requestAnimationFrame(tick);
     });
   }
 };
 
-// ==========================================
-// PROFILE PIC UPLOAD
-// ==========================================
-const ProfilePic = {
+// ============================================================
+// PROFILE PIC
+// ============================================================
+const PicUpload = {
   init() {
-    const zone = DOM.profilePicZone();
-    const input = DOM.profilePicInput();
-    if (!zone || !input) return;
-
-    zone.addEventListener('click', () => input.click());
-    input.addEventListener('change', (e) => this.handleFile(e.target.files[0]));
+    const input = document.getElementById('picInput');
+    if (!input) return;
+    input.addEventListener('change', e => this.handle(e.target.files[0]));
   },
-
-  handleFile(file) {
-    if (!file || !file.type.startsWith('image/')) {
-      Toast.show('Please upload an image file', 'error');
-      return;
-    }
+  handle(file) {
+    if (!file || !file.type.startsWith('image/')) { toast('Please upload an image','error'); return; }
     const reader = new FileReader();
-    reader.onload = (e) => {
-      AppState.profilePic = { data: e.target.result, rawFile: file, name: file.name };
-      const preview = DOM.profilePicPreview();
-      if (preview) {
-        preview.innerHTML = `<img src="${e.target.result}" style="width:100%;height:100%;object-fit:cover;border-radius:50%">`;
-      }
-      Toast.show('Profile picture added!', 'success');
-      AudioEngine.success();
+    reader.onload = e => {
+      State.profilePic = { data: e.target.result, file };
+      const preview = document.getElementById('picPreview');
+      if (preview) preview.innerHTML = `<img src="${e.target.result}" style="width:100%;height:100%;object-fit:cover;border-radius:50%">`;
+      toast('Profile picture added!','success');
+      SFX.success();
     };
     reader.readAsDataURL(file);
   }
 };
 
-// ==========================================
+// ============================================================
 // FILE UPLOAD
-// ==========================================
+// ============================================================
 const Upload = {
   init() {
-    const dz = DOM.dropZone();
-    const fi = DOM.fileInput();
+    const dz = document.getElementById('dropZone');
+    const fi = document.getElementById('fileInput');
     if (!dz || !fi) return;
 
-    dz.addEventListener('click', () => fi.click());
-    fi.addEventListener('change', (e) => this.handleFiles(e.target.files));
+    fi.addEventListener('change', e => this.handleFiles(e.target.files));
 
-    ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(evt => {
-      dz.addEventListener(evt, (e) => { e.preventDefault(); e.stopPropagation(); });
+    ['dragenter','dragover','dragleave','drop'].forEach(ev => {
+      dz.addEventListener(ev, e => { e.preventDefault(); e.stopPropagation(); });
     });
-    ['dragenter', 'dragover'].forEach(evt => dz.addEventListener(evt, () => dz.classList.add('drag-over')));
-    ['dragleave', 'drop'].forEach(evt => dz.addEventListener(evt, () => dz.classList.remove('drag-over')));
-    dz.addEventListener('drop', (e) => this.handleFiles(e.dataTransfer.files));
-
-    DOM.generateBtn()?.addEventListener('click', () => this.startGeneration());
-    DOM.clearBtn()?.addEventListener('click', () => this.clearFiles());
-    DOM.instantUploadBtn()?.addEventListener('click', () => this.instantCard());
-    DOM.instantCardBtn()?.addEventListener('click', () => this.instantCard());
-
-    this.updateGenerateButton();
+    ['dragenter','dragover'].forEach(ev => dz.addEventListener(ev, () => dz.classList.add('drag-over')));
+    ['dragleave','drop'].forEach(ev => dz.addEventListener(ev, () => dz.classList.remove('drag-over')));
+    dz.addEventListener('drop', e => this.handleFiles(e.dataTransfer.files));
   },
 
   handleFiles(fileList) {
-    const files = Array.from(fileList).filter(f => {
-      const valid = f.type.startsWith('image/') || f.type.startsWith('video/');
-      if (!valid) Toast.show(`Skipped ${f.name} - invalid type`, 'error');
-      return valid;
+    const valid = Array.from(fileList).filter(f => {
+      const ok = f.type.startsWith('image/') || f.type.startsWith('video/');
+      if (!ok) toast(`Skipped ${f.name} — unsupported type`, 'error');
+      return ok;
     });
-
-    if (AppState.uploadedFiles.length + files.length > 11) {
-      Toast.show('Max 11 files allowed', 'error');
-      return;
+    if (State.files.length + valid.length > 11) {
+      toast('Max 11 files allowed','error'); return;
     }
-
-    files.forEach(file => {
+    let loaded = 0;
+    valid.forEach(file => {
       const reader = new FileReader();
-      reader.onload = (e) => {
-        AppState.uploadedFiles.push({ id: Utils.generateId(), name: file.name, size: file.size, type: file.type, data: e.target.result, rawFile: file });
-        this.renderFileList();
-        this.updateGenerateButton();
+      reader.onload = e => {
+        State.files.push({ id: Util.id(), name: file.name, type: file.type, data: e.target.result, file });
+        loaded++;
+        if (loaded === valid.length) { this.renderList(); this.updateBtn(); }
       };
       reader.readAsDataURL(file);
     });
-
-    if (files.length > 0) {
-      Toast.show(`${files.length} file(s) added`, 'success');
-      AudioEngine.success();
-    }
+    if (valid.length) { toast(`${valid.length} file(s) added`, 'success'); SFX.success(); }
   },
 
-  renderFileList() {
-    const container = DOM.uploadedFiles();
-    const list = DOM.fileList();
-    const count = DOM.fileCount();
-    if (!container || !list || !count) return;
+  renderList() {
+    const wrap = document.getElementById('fileListWrap');
+    const grid = document.getElementById('fileGrid');
+    const count = document.getElementById('fileCount');
+    if (!wrap || !grid) return;
 
-    if (AppState.uploadedFiles.length === 0) {
-      list.classList.add('hidden');
-      return;
-    }
+    if (State.files.length === 0) { wrap.classList.add('hidden'); return; }
+    wrap.classList.remove('hidden');
+    if (count) count.textContent = State.files.length;
 
-    list.classList.remove('hidden');
-    count.textContent = AppState.uploadedFiles.length;
-    container.innerHTML = '';
-
-    AppState.uploadedFiles.forEach((file, idx) => {
-      const item = document.createElement('div');
-      item.className = 'file-item';
-      if (file.type.startsWith('image/')) {
-        item.innerHTML = `<img src="${file.data}" class="file-item-preview" alt="">`;
+    grid.innerHTML = '';
+    State.files.forEach((f, idx) => {
+      const div = document.createElement('div');
+      div.className = 'file-thumb';
+      if (f.type.startsWith('image/')) {
+        div.innerHTML = `<img src="${f.data}" alt="">`;
       } else {
-        item.innerHTML = `<div style="display:flex;align-items:center;justify-content:center;height:100%;font-size:2rem">🎬</div>`;
+        div.innerHTML = `<div class="video-thumb">🎬</div>`;
       }
-      const removeBtn = document.createElement('button');
-      removeBtn.className = 'file-item-remove';
-      removeBtn.innerHTML = '×';
-      removeBtn.addEventListener('click', (e) => { e.stopPropagation(); this.removeFile(idx); });
-      item.appendChild(removeBtn);
-      container.appendChild(item);
+      const rm = document.createElement('button');
+      rm.className = 'remove-btn';
+      rm.textContent = '×';
+      rm.onclick = e => { e.stopPropagation(); State.files.splice(idx,1); this.renderList(); this.updateBtn(); SFX.click(); };
+      div.appendChild(rm);
+      grid.appendChild(div);
     });
   },
 
-  removeFile(index) {
-    AppState.uploadedFiles.splice(index, 1);
-    this.renderFileList();
-    this.updateGenerateButton();
-    AudioEngine.click();
+  updateBtn() {
+    const btn = document.getElementById('generateBtn');
+    if (btn) btn.disabled = State.files.length === 0;
   },
 
-  clearFiles() {
-    AppState.uploadedFiles = [];
-    AppState.profilePic = null;
-    const fi = DOM.fileInput();
-    const pi = DOM.profilePicInput();
+  clear() {
+    State.files = [];
+    State.profilePic = null;
+    const fi = document.getElementById('fileInput');
+    const pi = document.getElementById('picInput');
     if (fi) fi.value = '';
     if (pi) pi.value = '';
-    const preview = DOM.profilePicPreview();
-    if (preview) preview.innerHTML = `<span>📷</span><p>Click to upload your profile pic</p>`;
-    this.renderFileList();
-    this.updateGenerateButton();
-    Toast.show('All cleared', 'info');
+    const prev = document.getElementById('picPreview');
+    if (prev) prev.innerHTML = '<span class="pic-placeholder-icon">📷</span><span class="pic-placeholder-txt">Click to upload</span>';
+    this.renderList();
+    this.updateBtn();
+    toast('Cleared','info');
   },
 
-  updateGenerateButton() {
-    const btn = DOM.generateBtn();
-    if (!btn) return;
-    btn.disabled = AppState.uploadedFiles.length === 0;
-  },
-
-  async instantCard() {
+  async instant() {
     try {
-      AudioEngine.init();
-      const response = await fetch(`${AppState.serverUrl}/api/instant-card`, { method: 'POST' });
-      const result = await response.json();
-      if (result.success && result.card) {
-        AppState.cards.unshift(result.card);
-        AppState.points += Math.floor(result.card.score * (result.card.rarityData?.weight || 1));
-        Utils.saveState();
-        this.updateNavStats();
-        CardDetail.currentCard = result.card;
-        if (result.card.rarity === 'legendary') {
-          AudioEngine.legendary();
-          Confetti.fire({ particleCount: 150 });
-          Toast.show(`🎉 LEGENDARY! ${result.card.name} - ${result.card.grade}!`, 'legendary', 5000);
-        } else {
-          AudioEngine.success();
-          Toast.show(`⚡ Instant ${result.card.name}!`, 'success');
-        }
-        Navigation.navigateTo('detail');
+      getAudio(); // unlock audio context
+      const res = await fetch(`${State.serverUrl}/api/instant-card`, { method:'POST' });
+      const data = await res.json();
+      if (data.success && data.card) {
+        this._receiveCard(data.card);
+        return;
       }
-    } catch (e) {
-      Toast.show('Instant card failed', 'error');
-    }
+    } catch(e) {}
+    // Fallback
+    const card = Util.mockCard({ source:'instant' });
+    this._receiveCard(card);
   },
 
-  async startGeneration() {
-    if (AppState.uploadedFiles.length === 0 && !DOM.profileLinkInput()?.value) return;
-    if (AppState.generationInProgress) return;
+  _receiveCard(card) {
+    if (!card.rarityData) card.rarityData = Util.getRarityData(card.rarity);
+    State.cards.unshift(card);
+    State.points += Math.floor(card.score * (card.rarityData.weight||1));
+    State.save();
+    updateNavStats();
+    Detail.currentCard = card;
+    if (card.rarity==='legendary') {
+      SFX.legendary();
+      confetti(150);
+      toast(`👑 LEGENDARY! ${card.name} — ${card.grade}!`, 'legendary', 5000);
+    } else if (card.rarity==='epic') {
+      SFX.success();
+      confetti(60,['#a855f7','#7c6aff','#ff6b9d']);
+      toast(`✨ EPIC! ${card.name} — ${card.grade}!`, 'success', 4000);
+    } else {
+      SFX.success();
+      toast(`🧬 ${card.name} — ${card.grade}!`, 'success');
+    }
+    Navigation.go('detail');
+  },
 
+  async start() {
+    if (State.generating || State.files.length === 0) return;
+    getAudio();
+
+    // Streak logic
     const today = new Date().toDateString();
-    const last = AppState.lastGenerated ? new Date(AppState.lastGenerated).toDateString() : null;
+    const last = State.lastGen ? new Date(State.lastGen).toDateString() : null;
     if (last !== today) {
-      const yesterday = new Date(Date.now() - 86400000).toDateString();
-      AppState.streak = (last === yesterday) ? AppState.streak + 1 : 1;
-      AppState.lastGenerated = new Date().toISOString();
+      const yest = new Date(Date.now()-86400000).toDateString();
+      State.streak = (last === yest) ? State.streak+1 : 1;
+      State.lastGen = new Date().toISOString();
     }
 
-    AppState.generationInProgress = true;
-    const overlay = DOM.processingOverlay();
-    const queueStatus = DOM.queueStatus();
+    State.generating = true;
+    const overlay = document.getElementById('overlay');
+    const queueMsg = document.getElementById('queueMsg');
     if (overlay) overlay.classList.remove('hidden');
-    if (queueStatus) queueStatus.classList.add('hidden');
-
-    AudioEngine.init();
-    AudioEngine.flip();
+    if (queueMsg) queueMsg.classList.add('hidden');
+    SFX.flip();
 
     const steps = [
-      { pct: 10, text: 'Uploading screenshots...', status: '📤 Uploading to DNA Lab' },
-      { pct: 25, text: 'Analyzing visual patterns...', status: '🔍 AI scanning your feed' },
-      { pct: 40, text: 'Detecting personality traits...', status: '🧬 Sequencing social genome' },
-      { pct: 55, text: 'Calculating engagement scores...', status: '📊 Computing virality metrics' },
-      { pct: 70, text: 'Determining card rarity...', status: '✨ Rolling for rarity...' },
-      { pct: 85, text: 'Generating trading card...', status: '🎨 Rendering premium card' },
-      { pct: 100, text: 'Card ready!', status: '🧬 Your DNA card is ready!' }
+      [10,  'Uploading screenshots…',      '📤 Sending to DNA Lab'],
+      [25,  'Analyzing visual patterns…',  '🔍 AI scanning your feed'],
+      [40,  'Detecting personality…',      '🧬 Sequencing social genome'],
+      [55,  'Scoring engagement…',         '📊 Computing virality metrics'],
+      [70,  'Rolling for rarity…',         '✨ Determining card rarity'],
+      [85,  'Rendering trading card…',     '🎨 Generating premium card'],
+      [100, 'Card ready!',                 '🧬 Your DNA card is ready!'],
     ];
-
-    let stepIndex = 0;
-    const progressInterval = setInterval(() => {
-      if (stepIndex < steps.length) {
-        const step = steps[stepIndex];
-        this.updateProgress(step.pct, step.text, step.status);
-        if (step.pct === 70) AudioEngine.flip();
-        stepIndex++;
+    let si = 0;
+    const prog = setInterval(() => {
+      if (si < steps.length) {
+        const [pct, label, status] = steps[si++];
+        this._setProgress(pct, label, status);
+        if (pct === 70) SFX.flip();
       }
-    }, 1200);
+    }, 1100);
 
     let card = null;
-    let usedFallback = false;
-    let wasQueued = false;
-
     try {
-      const formData = new FormData();
-      AppState.uploadedFiles.forEach(file => {
-        if (file.rawFile) formData.append('files', file.rawFile, file.name);
-      });
-      if (AppState.profilePic?.rawFile) formData.append('profilePic', AppState.profilePic.rawFile, AppState.profilePic.name);
+      const fd = new FormData();
+      State.files.forEach(f => { if (f.file) fd.append('files', f.file, f.name); });
+      if (State.profilePic?.file) fd.append('profilePic', State.profilePic.file, 'profile.jpg');
+      fd.append('username', document.getElementById('inUsername')?.value?.trim() || 'Anonymous');
+      fd.append('profileLink', document.getElementById('inLink')?.value?.trim() || '');
 
-      const username = DOM.usernameInput()?.value?.trim() || 'Anonymous';
-      const profileLink = DOM.profileLinkInput()?.value?.trim() || '';
-      formData.append('username', username);
-      formData.append('profileLink', profileLink);
+      const res = await fetch(`${State.serverUrl}/api/generate-card`, { method:'POST', body:fd });
+      if (!res.ok) throw new Error(`Server ${res.status}`);
+      const data = await res.json();
 
-      const response = await fetch(`${AppState.serverUrl}/api/generate-card`, {
-        method: 'POST',
-        body: formData
-      });
-
-      if (!response.ok) {
-        const errData = await response.json().catch(() => ({}));
-        throw new Error(errData.error || `Server error: ${response.status}`);
-      }
-
-      const result = await response.json();
-
-      if (result.queued) {
-        wasQueued = true;
-        clearInterval(progressInterval);
-        this.updateProgress(50, 'In review queue...', '👨‍🔬 Admin is crafting your card');
-        if (queueStatus) queueStatus.classList.remove('hidden');
-        await this.delay(3000);
+      if (data.queued) {
+        clearInterval(prog);
+        this._setProgress(50,'In review queue…','👨‍🔬 Admin is crafting your card');
+        if (queueMsg) queueMsg.classList.remove('hidden');
+        await delay(3000);
         if (overlay) overlay.classList.add('hidden');
-        AppState.generationInProgress = false;
-        Toast.show('⏳ Your card is in the admin queue! Check back soon.', 'info', 5000);
-        this.clearFiles();
+        State.generating = false;
+        toast('⏳ Your card is in the expert queue! Check back soon.','info',5000);
+        this.clear();
         return;
       }
 
-      if (result.success && result.card) {
-        card = result.card;
-        if (!card.id) card.id = Utils.generateId();
-        if (!card.createdAt) card.createdAt = new Date().toISOString();
-        if (!card.rarityData) {
-          card.rarityData = {
-            common: { weight: 1, color: 'linear-gradient(135deg, #4b5563, #2d3142)', border: '#6b7280' },
-            rare: { weight: 10, color: 'linear-gradient(135deg, #1e3a8a, #1e40af)', border: '#3b82f6' },
-            epic: { weight: 25, color: 'linear-gradient(135deg, #5b21b6, #6b21a8)', border: '#8b5cf6' },
-            legendary: { weight: 100, color: 'linear-gradient(135deg, #d97706, #f59e0b)', border: '#fbbf24' }
-          }[card.rarity] || { weight: 1, color: 'linear-gradient(135deg, #4b5563, #2d3142)', border: '#6b7280' };
-        }
+      if (data.success && data.card) {
+        card = data.card;
+        if (!card.rarityData) card.rarityData = Util.getRarityData(card.rarity);
       } else {
         throw new Error('Invalid response');
       }
-
-    } catch (error) {
-      console.error('API call failed:', error);
-      Toast.show(`Server error: ${error.message}. Using fallback...`, 'error', 4000);
-      usedFallback = true;
-      await this.delay(1500);
-      card = this.generateMockCard();
+    } catch(err) {
+      toast(`AI error — using fallback card`, 'error', 3000);
+      card = Util.mockCard();
     }
 
-    clearInterval(progressInterval);
-
-    if (!card) {
-      card = this.generateMockCard();
-      usedFallback = true;
-    }
-
-    this.updateProgress(100, 'Card ready!', '🧬 Your DNA card is ready!');
-    await this.delay(500);
-
-    AppState.cards.unshift(card);
-    AppState.points += Math.floor(card.score * (card.rarityData?.weight || 1));
-    Utils.saveState();
-    this.updateNavStats();
-
+    clearInterval(prog);
+    this._setProgress(100, 'Card ready!', '🧬 Your DNA card is ready!');
+    await delay(600);
     if (overlay) overlay.classList.add('hidden');
-    AppState.generationInProgress = false;
-    this.clearFiles();
-
-    if (card.rarity === 'legendary') {
-      AudioEngine.legendary();
-      Confetti.fire({ particleCount: 150, origin: { y: 0.5 } });
-      Toast.show(`🎉 LEGENDARY PULL! ${card.name} - ${card.grade}!`, 'legendary', 5000);
-    } else if (card.rarity === 'epic') {
-      AudioEngine.success();
-      Confetti.fire({ particleCount: 60, colors: ['#8b5cf6', '#6366f1'] });
-      Toast.show(`✨ EPIC! ${card.name} - ${card.grade}!`, 'success', 4000);
-    } else {
-      AudioEngine.success();
-      Toast.show(`${usedFallback ? '🎲' : '🧬'} ${card.name} generated!`, 'success');
-    }
-
-    CardDetail.currentCard = card;
-    Navigation.navigateTo('detail');
+    State.generating = false;
+    this.clear();
+    this._receiveCard(card);
   },
 
-  updateProgress(pct, text, status) {
-    const fill = DOM.progressFill();
-    const txt = DOM.progressText();
-    const ai = DOM.aiStatus();
-    if (fill) fill.style.width = pct + '%';
-    if (txt) txt.textContent = text;
-    if (ai) ai.textContent = status;
-  },
-
-  delay(ms) { return new Promise(resolve => setTimeout(resolve, ms)); },
-
-  generateMockCard() {
-    const rarityData = Utils.getRarity();
-    const baseScore = Utils.randomBetween(5.0, 9.9);
-    const rarityBonus = rarityData.type === 'legendary' ? 0.8 : rarityData.type === 'epic' ? 0.5 : rarityData.type === 'rare' ? 0.3 : 0;
-    const score = Utils.clamp(baseScore + rarityBonus + (AppState.streak * 0.05), 5.0, 10.0);
-
-    const stats = {
-      creativity: Utils.randomInt(60, 99), engagement: Utils.randomInt(50, 99),
-      consistency: Utils.randomInt(40, 99), virality: Utils.randomInt(45, 99),
-      aesthetic: Utils.randomInt(55, 99), authenticity: Utils.randomInt(50, 99)
-    };
-
-    const name = Utils.getPersonalityName();
-    const grade = Utils.getGrade(score);
-
-    return {
-      id: Utils.generateId(), name, rarity: rarityData.type, rarityData,
-      score: parseFloat(score.toFixed(1)), grade, stats,
-      description: this.generateDescription(name, rarityData.type, stats),
-      createdAt: new Date().toISOString(),
-      username: DOM.usernameInput()?.value || 'Anonymous',
-      profileLink: DOM.profileLinkInput()?.value || '',
-      profilePicUrl: AppState.profilePic ? AppState.profilePic.data : null
-    };
-  },
-
-  generateDescription(name, rarity, stats) {
-    const topStat = Object.entries(stats).sort((a, b) => b[1] - a[1])[0];
-    const statNames = { creativity: 'creative vision', engagement: 'audience magnetism', consistency: 'posting discipline', virality: 'trend-setting power', aesthetic: 'visual curation', authenticity: 'genuine connection' };
-    return `A ${rarity.toUpperCase()} DNA card representing a user with exceptional ${statNames[topStat[0]]}. Their social media presence radiates ${name.toLowerCase()} energy, scoring highest in ${topStat[0]} at ${topStat[1]}%.`;
-  },
-
-  updateNavStats() {
-    const cc = DOM.cardCount();
-    const pts = DOM.points();
-    const str = DOM.streak();
-    if (cc) cc.textContent = AppState.cards.length;
-    if (pts) pts.textContent = AppState.points.toLocaleString();
-    if (str) str.textContent = AppState.streak;
+  _setProgress(pct, label, status) {
+    const bar = document.getElementById('progBar');
+    const lbl = document.getElementById('progLabel');
+    const ai  = document.getElementById('aiLabel');
+    if (bar) bar.style.width = pct+'%';
+    if (lbl) lbl.textContent = label;
+    if (ai)  ai.textContent  = status;
   }
 };
 
-// ==========================================
-// COLLECTION
-// ==========================================
-const Collection = {
-  currentFilter: 'all',
+function delay(ms) { return new Promise(r => setTimeout(r, ms)); }
 
-  init() {
-    DOM.filterButtons().forEach(btn => {
-      btn.addEventListener('click', () => {
-        DOM.filterButtons().forEach(b => b.classList.remove('active'));
-        btn.classList.add('active');
-        this.currentFilter = btn.dataset.filter;
-        this.render();
-        AudioEngine.click();
-      });
-    });
+// ============================================================
+// COLLECTION
+// ============================================================
+const Collection = {
+  activeFilter: 'all',
+
+  filter(btn, f) {
+    document.querySelectorAll('.fb').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    this.activeFilter = f;
+    this.render();
+    SFX.click();
   },
 
   render() {
-    const grid = DOM.cardsGrid();
-    const total = DOM.totalCards();
-    const legend = DOM.legendaryCount();
-    const points = DOM.totalPoints();
+    const grid = document.getElementById('cardsGrid');
     if (!grid) return;
 
-    if (total) total.textContent = AppState.cards.length;
-    if (legend) legend.textContent = AppState.cards.filter(c => c.rarity === 'legendary').length;
-    if (points) points.textContent = AppState.points.toLocaleString();
+    // update header stats
+    const t = document.getElementById('colTotal');
+    const l = document.getElementById('colLegend');
+    const p = document.getElementById('colPts');
+    if (t) t.textContent = State.cards.length;
+    if (l) l.textContent = State.cards.filter(c=>c.rarity==='legendary').length;
+    if (p) p.textContent = State.points.toLocaleString();
 
-    let cards = AppState.cards;
-    if (this.currentFilter !== 'all') cards = cards.filter(c => c.rarity === this.currentFilter);
+    let cards = State.cards;
+    if (this.activeFilter !== 'all') cards = cards.filter(c => c.rarity === this.activeFilter);
 
     if (cards.length === 0) {
       grid.innerHTML = `
         <div class="empty-state">
-          <p style="font-size:3rem;margin-bottom:1rem">📭</p>
-          <p>No ${this.currentFilter !== 'all' ? this.currentFilter : ''} DNA cards yet.</p>
-          <button class="cta-button primary" style="margin-top:1.5rem" onclick="Navigation.navigateTo('upload')">
-            🧬 Generate Your First Card
-          </button>
-        </div>
-      `;
+          <p style="font-size:3rem;margin-bottom:0.75rem">📭</p>
+          <p>No ${this.activeFilter !== 'all' ? this.activeFilter+' ' : ''}DNA cards yet.</p>
+          <button class="btn-primary" style="margin-top:1.5rem" onclick="Navigation.go('upload')">🧬 Generate Your First Card</button>
+        </div>`;
       return;
     }
 
     grid.innerHTML = '';
-    cards.forEach((card, idx) => {
+    cards.forEach((card, i) => {
+      const rd = card.rarityData || Util.getRarityData(card.rarity);
       const el = document.createElement('div');
-      el.className = 'card-item';
-      el.style.animationDelay = `${idx * 0.05}s`;
-      const bg = card.rarityData?.color || card.color || 'linear-gradient(135deg, #4b5563, #2d3142)';
-      const border = card.rarityData?.border || '#6b7280';
+      el.className = `col-card ${card.rarity}`;
+      el.style.animationDelay = `${i*0.04}s`;
 
-      // Profile pic on card if available
-      const profileHtml = card.profilePicUrl
-        ? `<div class="card-profile-thumb"><img src="${card.profilePicUrl}" alt=""></div>`
-        : `<div class="card-profile-thumb placeholder">👤</div>`;
+      const picHtml = card.profilePicUrl
+        ? `<div class="card-avatar"><img src="${card.profilePicUrl}" alt=""></div>`
+        : `<div class="card-avatar"><div class="avatar-placeholder">👤</div></div>`;
 
       el.innerHTML = `
-        <div class="card-face card-${card.rarity}" style="background: ${bg}; border-color: ${border}">
-          <div class="card-face-content">
-            ${profileHtml}
-            <div class="card-rarity-badge">${card.rarity.toUpperCase()}</div>
-            <div class="card-title">${card.name}</div>
-            <div class="card-user">@${card.username || 'user'}</div>
-            <div class="card-score">⭐ ${card.score} | ${card.grade}</div>
-          </div>
+        <div class="card-bg" style="background:${rd.gradient}">
+          <div class="card-rarity-strip">${card.rarity.toUpperCase()}</div>
+          ${picHtml}
         </div>
-      `;
-      el.addEventListener('click', () => { CardDetail.currentCard = card; Navigation.navigateTo('detail'); });
-      el.addEventListener('mouseenter', () => AudioEngine.hover());
+        <div class="card-body">
+          <div class="card-name-txt">${card.name}</div>
+          <div class="card-user-txt">@${card.username||'anonymous'}</div>
+          <div class="card-score-txt">
+            <span>⭐ ${card.score}</span>
+            <span class="card-grade-badge">${card.grade}</span>
+          </div>
+        </div>`;
+
+      el.addEventListener('click', () => { Detail.currentCard = card; Navigation.go('detail'); SFX.flip(); });
+      el.addEventListener('mouseenter', () => SFX.hover());
       grid.appendChild(el);
     });
   }
 };
+window.Collection = Collection;
 
-// ==========================================
+// ============================================================
 // CARD DETAIL
-// ==========================================
-const CardDetail = {
+// ============================================================
+const Detail = {
   currentCard: null,
-
-  init() {
-    DOM.shareCardBtn()?.addEventListener('click', () => this.share());
-    DOM.downloadCardBtn()?.addEventListener('click', () => this.download());
-    DOM.rerollCardBtn()?.addEventListener('click', () => this.reroll());
-  },
 
   render() {
     const card = this.currentCard;
     if (!card) return;
+    const rd = card.rarityData || Util.getRarityData(card.rarity);
 
-    const display = DOM.cardDisplay();
-    const info = DOM.cardDetailInfo();
-    const stats = DOM.statsDetail();
+    // Trading card visual
+    const canvas = document.getElementById('cardCanvas');
+    const r = 2*Math.PI*40;
+    const offset = r * (1 - card.score/10);
+    const profileHtml = card.profilePicUrl
+      ? `<div class="tc-avatar"><img src="${card.profilePicUrl}" alt=""></div>`
+      : `<div class="tc-avatar"><div class="tc-avatar-placeholder">👤</div></div>`;
 
-    const bg = card.rarityData?.color || card.color || 'linear-gradient(135deg, #4b5563, #2d3142)';
-    const border = card.rarityData?.border || '#6b7280';
-    const profileImg = card.profilePicUrl
-      ? `<div class="card-profile-large"><img src="${card.profilePicUrl}" alt=""><div class="profile-ring" style="border-color:${border}"></div></div>`
-      : `<div class="card-profile-large placeholder">👤</div>`;
-
-    // Sports trading card style
-    if (display) {
-      display.innerHTML = `
-        <div class="trading-card" style="background: ${bg}; border-color: ${border}">
-          <div class="trading-card-header">
-            <span class="trading-rarity">${card.rarity.toUpperCase()}</span>
-            <span class="trading-grade">${card.grade}</span>
+    if (canvas) {
+      canvas.innerHTML = `
+        <div class="trading-card" id="tradingCard" style="background:${rd.gradient};border-color:${rd.border};box-shadow:0 20px 60px ${rd.glow||'rgba(0,0,0,0.5)'}">
+          <div class="tc-header">
+            <span class="tc-rarity-lbl">${card.rarity.toUpperCase()}</span>
+            <span class="tc-grade">${card.grade}</span>
           </div>
-          <div class="trading-profile">
-            ${profileImg}
-            <div class="trading-name">${card.name}</div>
-            <div class="trading-username">@${card.username || 'anonymous'}</div>
-          </div>
-          <div class="trading-score-ring">
+          <div class="tc-profile">${profileHtml}</div>
+          <div class="tc-name">${card.name}</div>
+          <div class="tc-user">@${card.username||'anonymous'}</div>
+          <div class="tc-ring">
             <svg viewBox="0 0 100 100">
-              <circle cx="50" cy="50" r="45" fill="none" stroke="rgba(255,255,255,0.2)" stroke-width="8"/>
-              <circle cx="50" cy="50" r="45" fill="none" stroke="white" stroke-width="8" 
-                stroke-dasharray="${2 * Math.PI * 45}" 
-                stroke-dashoffset="${2 * Math.PI * 45 * (1 - card.score / 10)}" 
-                stroke-linecap="round" style="transition: stroke-dashoffset 1.5s ease; transform: rotate(-90deg); transform-origin: center;"/>
+              <circle cx="50" cy="50" r="40" fill="none" stroke="rgba(255,255,255,0.2)" stroke-width="7"/>
+              <circle cx="50" cy="50" r="40" fill="none" stroke="white" stroke-width="7"
+                stroke-dasharray="${r}" stroke-dashoffset="${r}"
+                stroke-linecap="round" id="scoreRing"/>
             </svg>
-            <div class="trading-score-value">${card.score}</div>
+            <div class="tc-ring-val">${card.score}</div>
           </div>
-          <div class="trading-stats-mini">
-            <div>CR: ${card.stats?.creativity || 0}</div>
-            <div>EN: ${card.stats?.engagement || 0}</div>
-            <div>VI: ${card.stats?.virality || 0}</div>
+          <div class="tc-stats-row">
+            <span>CR:${card.stats?.creativity||0}</span>
+            <span>EN:${card.stats?.engagement||0}</span>
+            <span>VI:${card.stats?.virality||0}</span>
           </div>
-        </div>
-      `;
+        </div>`;
+      // Animate ring
+      setTimeout(() => {
+        const ring = document.getElementById('scoreRing');
+        if (ring) ring.style.strokeDashoffset = offset;
+      }, 100);
     }
 
+    // Detail info panel
+    const info = document.getElementById('detailInfo');
     if (info) {
       info.innerHTML = `
         <h2>${card.name}</h2>
-        <p>${card.description}</p>
-        ${card.profileLink ? `<p style="margin-top:0.5rem"><a href="${card.profileLink}" target="_blank" style="color:var(--primary);text-decoration:none">🔗 ${card.profileLink}</a></p>` : ''}
-        <div style="margin-top:1.5rem;display:flex;gap:1rem;flex-wrap:wrap">
-          <span style="padding:0.5rem 1rem;background:rgba(255,255,255,0.1);border-radius:20px;font-size:0.9rem">🔥 Streak: ${AppState.streak}</span>
-          <span style="padding:0.5rem 1rem;background:rgba(255,255,255,0.1);border-radius:20px;font-size:0.9rem">💎 ${card.rarityData?.weight || 1}x Multiplier</span>
-        </div>
-      `;
+        <p>${card.description||''}</p>
+        ${card.profileLink ? `<a href="${card.profileLink}" target="_blank" class="profile-link">🔗 ${card.profileLink}</a>` : ''}
+        <div class="detail-badges">
+          <span class="detail-badge">🔥 Streak: ${State.streak}</span>
+          <span class="detail-badge">💎 ${rd.weight}× Multiplier</span>
+          <span class="detail-badge">📅 ${Util.fmtDate(card.createdAt)}</span>
+          ${card.source ? `<span class="detail-badge">🤖 ${card.source}</span>` : ''}
+        </div>`;
     }
 
-    if (stats) {
-      stats.innerHTML = Object.entries(card.stats || {}).map(([key, val]) => `
-        <div class="stat-detail-item">
-          <span>${key.charAt(0).toUpperCase() + key.slice(1)}</span>
-          <span class="stat-detail-value">${val}%</span>
-          <div style="width:100%;height:6px;background:rgba(255,255,255,0.1);border-radius:3px;margin-top:0.5rem;overflow:hidden">
-            <div style="width:${val}%;height:100%;background:var(--primary);border-radius:3px;transition:width 1s ease"></div>
+    // Stats
+    const sg = document.getElementById('statsGrid');
+    if (sg) {
+      sg.innerHTML = Object.entries(card.stats||{}).map(([key,val]) => `
+        <div class="stat-row">
+          <div class="stat-row-top">
+            <span class="stat-row-name">${key.charAt(0).toUpperCase()+key.slice(1)}</span>
+            <span class="stat-row-val">${val}%</span>
           </div>
-        </div>
-      `).join('');
+          <div class="stat-bar-track">
+            <div class="stat-bar-fill" data-val="${val}" style="width:0%"></div>
+          </div>
+        </div>`).join('');
+
+      // Animate bars
+      setTimeout(() => {
+        sg.querySelectorAll('.stat-bar-fill').forEach(b => {
+          b.style.width = b.dataset.val + '%';
+        });
+      }, 200);
     }
   },
 
   share() {
     const card = this.currentCard;
     if (!card) return;
-    const text = `I just pulled a ${card.rarity.toUpperCase()} "${card.name}" DNA card on Scroll DNA! Score: ${card.score} | Grade: ${card.grade} 🧬✨`;
+    const text = `I just got a ${card.rarity.toUpperCase()} "${card.name}" DNA card on Scroll DNA! Score: ${card.score} | Grade: ${card.grade} 🧬`;
     if (navigator.share) {
-      navigator.share({ title: 'Scroll DNA Card', text }).catch(() => {});
+      navigator.share({ title:'Scroll DNA Card', text }).catch(()=>{});
     } else {
-      navigator.clipboard.writeText(text).then(() => Toast.show('Copied to clipboard!', 'success'));
+      navigator.clipboard.writeText(text)
+        .then(() => toast('Copied to clipboard! 📋','success'))
+        .catch(() => toast('Share text: '+text,'info',6000));
     }
-    AudioEngine.success();
+    SFX.success();
   },
 
-  download() {
-    Toast.show('Download feature coming in v2!', 'info');
-    AudioEngine.click();
+  async download() {
+    const card = this.currentCard;
+    if (!card) return;
+    // Try html2canvas if available, else export JSON
+    try {
+      const tc = document.getElementById('tradingCard');
+      if (!tc) throw new Error('no card');
+
+      // Load html2canvas dynamically
+      if (!window.html2canvas) {
+        await new Promise((res,rej) => {
+          const s = document.createElement('script');
+          s.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js';
+          s.onload = res; s.onerror = rej;
+          document.head.appendChild(s);
+        });
+      }
+      toast('Capturing card…','info',2000);
+      const canvas = await window.html2canvas(tc, { backgroundColor:null, scale:2, useCORS:true });
+      const link = document.createElement('a');
+      link.download = `scroll-dna-${card.name.replace(/\s+/g,'-')}.png`;
+      link.href = canvas.toDataURL('image/png');
+      link.click();
+      toast('Card downloaded! 📥','success');
+      SFX.success();
+    } catch(e) {
+      // Fallback: download as JSON data
+      const data = JSON.stringify(card, null, 2);
+      const blob = new Blob([data],{type:'application/json'});
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = `scroll-dna-card-${card.id}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+      toast('Card data downloaded 📥','success');
+    }
   },
 
   reroll() {
-    if (AppState.points < 50) {
-      Toast.show('Need 50 points to re-roll!', 'error');
-      AudioEngine.error();
-      return;
-    }
-    AppState.points -= 50;
-    Utils.saveState();
-    Upload.updateNavStats();
-
-    const newCard = Upload.generateMockCard();
-    newCard.id = this.currentCard.id;
-    const idx = AppState.cards.findIndex(c => c.id === newCard.id);
-    if (idx !== -1) AppState.cards[idx] = newCard;
+    if (State.points < 50) { toast('Need 50 points to re-roll!','error'); SFX.error(); return; }
+    State.points -= 50;
+    const newCard = Util.mockCard({
+      id: this.currentCard?.id,
+      username: this.currentCard?.username,
+      profileLink: this.currentCard?.profileLink,
+      profilePicUrl: this.currentCard?.profilePicUrl
+    });
+    const idx = State.cards.findIndex(c => c.id === this.currentCard?.id);
+    if (idx !== -1) State.cards[idx] = newCard;
     this.currentCard = newCard;
-    Utils.saveState();
+    State.save();
+    updateNavStats();
     this.render();
-    Toast.show('Card re-rolled!', 'success');
-    AudioEngine.flip();
+    toast('Card re-rolled! 🔄','success');
+    SFX.flip();
   }
 };
+window.Detail = Detail;
 
-// ==========================================
-// ADMIN DASHBOARD
-// ==========================================
+// ============================================================
+// ADMIN
+// ============================================================
 const Admin = {
-  currentTab: 'pending',
-  eventSource: null,
+  activeTab: 'pending',
+  sse: null,
 
   init() {
-    const loginBtn = DOM.adminLoginBtn();
-    const logoutBtn = DOM.adminLogoutBtn();
-    const password = DOM.adminPassword();
-    const onlineToggle = DOM.adminOnlineToggle();
-
-    if (loginBtn) loginBtn.addEventListener('click', () => this.login());
-    if (logoutBtn) logoutBtn.addEventListener('click', () => this.logout());
-    if (password) password.addEventListener('keypress', (e) => { if (e.key === 'Enter') this.login(); });
-    if (onlineToggle) onlineToggle.addEventListener('click', () => this.toggleOnline());
-
-    DOM.adminTabs().forEach(tab => {
-      tab.addEventListener('click', () => {
-        DOM.adminTabs().forEach(t => t.classList.remove('active'));
-        tab.classList.add('active');
-        this.currentTab = tab.dataset.tab;
-        this.renderTab();
-        AudioEngine.click();
-      });
-    });
-
-    DOM.createCardBtn()?.addEventListener('click', () => this.createManualCard());
-    DOM.notificationBell()?.addEventListener('click', () => this.showNotifications());
-
-    if (AppState.adminToken) {
-      this.showContent();
-      this.connectSSE();
-      this.loadData();
-    } else {
-      this.showLogin();
-    }
+    if (State.adminToken) { this.showContent(); this.loadAll(); this.connectSSE(); }
+    else this.showLogin();
   },
 
   async login() {
-    const pw = DOM.adminPassword();
+    const pw = document.getElementById('adminPw');
     if (!pw) return;
     try {
-      const response = await fetch(`${AppState.serverUrl}/api/admin/login`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ password: pw.value })
+      const res = await fetch(`${State.serverUrl}/api/admin/login`,{
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({password:pw.value})
       });
-      const result = await response.json();
-      if (result.success) {
-        AppState.adminToken = result.token;
-        Utils.saveState();
-        this.showContent();
-        this.connectSSE();
-        this.loadData();
-        Toast.show('Admin access granted', 'success');
-        AudioEngine.success();
+      const data = await res.json();
+      if (data.success) {
+        State.adminToken = data.token;
+        State.save();
         pw.value = '';
+        this.showContent();
+        this.loadAll();
+        this.connectSSE();
+        toast('Admin access granted','success');
+        SFX.success();
       } else {
-        Toast.show('Invalid password', 'error');
-        AudioEngine.error();
+        toast('Invalid password','error'); SFX.error();
       }
-    } catch (e) {
-      Toast.show('Server error', 'error');
-      AudioEngine.error();
-    }
+    } catch(e) { toast('Server error','error'); SFX.error(); }
   },
 
   logout() {
-    AppState.adminToken = null;
-    if (this.eventSource) { this.eventSource.close(); this.eventSource = null; }
-    Utils.saveState();
+    State.adminToken = null;
+    State.save();
+    if (this.sse) { this.sse.close(); this.sse = null; }
     this.showLogin();
-    Toast.show('Logged out', 'info');
+    toast('Logged out','info');
   },
 
   showLogin() {
-    const login = DOM.adminLogin();
-    const content = DOM.adminContent();
-    if (login) login.classList.remove('hidden');
-    if (content) content.classList.add('hidden');
+    const l = document.getElementById('adminLogin');
+    const c = document.getElementById('adminContent');
+    if (l) l.style.display = 'block';
+    if (c) c.classList.add('hidden');
   },
 
   showContent() {
-    const login = DOM.adminLogin();
-    const content = DOM.adminContent();
-    if (login) login.classList.add('hidden');
-    if (content) content.classList.remove('hidden');
+    const l = document.getElementById('adminLogin');
+    const c = document.getElementById('adminContent');
+    if (l) l.style.display = 'none';
+    if (c) c.classList.remove('hidden');
   },
 
   connectSSE() {
-    if (this.eventSource) this.eventSource.close();
-    this.eventSource = new EventSource(`${AppState.serverUrl}/api/admin/stream`, {
-      headers: { 'x-admin-auth': AppState.adminToken }
-    });
-
-    this.eventSource.onmessage = (event) => {
-      try {
-        const data = JSON.parse(event.data);
-        if (data.type === 'connected') return;
-
-        AppState.notifications.unshift(data);
-        AppState.unreadCount++;
-        this.updateBell();
-
-        // Browser notification for mobile/desktop
-        if (Notification.permission === 'granted') {
-          new Notification('Scroll DNA Admin', { body: data.message, icon: '🧬' });
-        }
-
-        AudioEngine.notify();
-        Toast.show(data.message, 'notify', 4000);
-
-        if (data.type === 'new_upload' || data.type === 'pending_added') {
-          this.loadPending();
-          this.loadStats();
-        }
-        if (data.type === 'card_generated' || data.type === 'manual_approved') {
-          this.loadCards();
-          this.loadStats();
-        }
-      } catch (e) {}
-    };
-
-    this.eventSource.onerror = () => {
-      console.log('SSE error, reconnecting...');
-      setTimeout(() => this.connectSSE(), 5000);
-    };
+    if (this.sse) this.sse.close();
+    try {
+      this.sse = new EventSource(`${State.serverUrl}/api/admin/stream`);
+      this.sse.onmessage = e => {
+        try {
+          const d = JSON.parse(e.data);
+          if (d.type === 'connected') return;
+          State.notifications.unshift(d);
+          State.unreadNotifs++;
+          this.updateBell();
+          if (Notification.permission === 'granted') new Notification('Scroll DNA',{body:d.message});
+          SFX.notify();
+          toast(d.message,'notify',4000);
+          if (['new_upload','pending_added'].includes(d.type)) { this.loadStats(); this.loadPending(); }
+          if (['card_generated','manual_approved'].includes(d.type)) { this.loadStats(); this.loadCards(); }
+        } catch(err){}
+      };
+      this.sse.onerror = () => setTimeout(()=>this.connectSSE(), 5000);
+    } catch(e){}
   },
 
   updateBell() {
-    const bell = DOM.bellCount();
-    if (bell) {
-      bell.textContent = AppState.unreadCount;
-      bell.style.display = AppState.unreadCount > 0 ? 'flex' : 'none';
-    }
+    const badge = document.getElementById('bellCount');
+    if (!badge) return;
+    badge.textContent = State.unreadNotifs;
+    badge.classList.toggle('hidden', State.unreadNotifs === 0);
   },
 
-  showNotifications() {
-    AppState.unreadCount = 0;
-    this.updateBell();
-    Toast.show('Notifications cleared', 'info');
-  },
+  clearNotifs() { State.unreadNotifs = 0; this.updateBell(); toast('Notifications cleared','info'); },
 
   async toggleOnline() {
-    const btn = DOM.adminOnlineToggle();
+    const btn = document.getElementById('onlineToggle');
     const isOnline = btn?.classList.contains('online');
     try {
-      await fetch(`${AppState.serverUrl}/api/admin/status`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-admin-auth': AppState.adminToken },
-        body: JSON.stringify({ online: !isOnline })
+      await fetch(`${State.serverUrl}/api/admin/status`,{
+        method:'POST', headers:{'Content-Type':'application/json','x-admin-auth':State.adminToken},
+        body: JSON.stringify({online:!isOnline})
       });
       if (btn) {
-        btn.classList.toggle('online');
-        btn.classList.toggle('offline');
-        btn.textContent = isOnline ? '⚪ Offline Mode' : '🟢 Online Mode';
+        btn.classList.toggle('online',!isOnline);
+        btn.classList.toggle('offline',isOnline);
+        btn.textContent = isOnline ? '⚪ Offline' : '🟢 Online';
       }
-      Toast.show(isOnline ? 'Admin offline - AI will auto-generate' : 'Admin online - manual review enabled', 'info');
-    } catch (e) {}
+      toast(isOnline ? 'Admin offline — AI auto-generates' : 'Admin online — manual review enabled','info');
+    } catch(e){}
   },
 
-  async loadData() {
+  async loadAll() {
     await this.loadStats();
     this.renderTab();
-    if (Notification.permission !== 'granted' && Notification.permission !== 'denied') {
-      Notification.requestPermission();
-    }
+    if (Notification.permission === 'default') Notification.requestPermission();
   },
 
   async loadStats() {
     try {
-      const response = await fetch(`${AppState.serverUrl}/api/admin/stats`, {
-        headers: { 'x-admin-auth': AppState.adminToken }
-      });
-      const stats = await response.json();
+      const res = await fetch(`${State.serverUrl}/api/admin/stats`,{headers:{'x-admin-auth':State.adminToken}});
+      const d = await res.json();
+      const row = document.getElementById('adminStatRow');
+      if (row) row.innerHTML = [
+        ['Total Uploads', d.totalUploads||0],
+        ['Total Cards', d.totalCards||0],
+        ['Pending Review', d.pendingCount||0],
+        ['AI Cards', d.aiCards||0],
+      ].map(([lbl,val])=>`
+        <div class="admin-stat-card">
+          <span class="admin-stat-val">${val}</span>
+          <span class="admin-stat-lbl">${lbl}</span>
+        </div>`).join('');
+    } catch(e){}
+  },
 
-      const setVal = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
-      setVal('statTotalUploads', stats.totalUploads || 0);
-      setVal('statTotalCards', stats.totalCards || 0);
-      setVal('statPending', stats.pendingCount || 0);
-      setVal('statAICards', stats.aiCards || 0);
-    } catch (e) {}
+  tab(btn, name) {
+    document.querySelectorAll('.atab').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    this.activeTab = name;
+    this.renderTab();
+    SFX.click();
   },
 
   renderTab() {
-    ['pending', 'uploads', 'cards', 'create'].forEach(tab => {
-      const el = document.getElementById(tab + 'Tab');
+    ['pending','uploads','cards','create'].forEach(name => {
+      const el = document.getElementById('tab-'+name);
       if (el) {
-        el.classList.toggle('active', tab === this.currentTab);
-        el.classList.toggle('hidden', tab !== this.currentTab);
+        el.classList.toggle('hidden', name !== this.activeTab);
+        el.classList.toggle('active', name === this.activeTab);
       }
     });
-
-    if (this.currentTab === 'pending') this.loadPending();
-    if (this.currentTab === 'uploads') this.loadUploads();
-    if (this.currentTab === 'cards') this.loadCards();
+    if (this.activeTab === 'pending') this.loadPending();
+    if (this.activeTab === 'uploads') this.loadUploads();
+    if (this.activeTab === 'cards')   this.loadCards();
   },
 
   async loadPending() {
-    const container = DOM.pendingList();
-    if (!container) return;
-    container.innerHTML = '<p style="color:var(--text-tertiary)">Loading queue...</p>';
-
+    const wrap = document.getElementById('tab-pending');
+    if (!wrap) return;
+    wrap.innerHTML = '<p style="color:var(--text3);padding:1rem">Loading queue…</p>';
     try {
-      const response = await fetch(`${AppState.serverUrl}/api/admin/pending`, {
-        headers: { 'x-admin-auth': AppState.adminToken }
-      });
-      const data = await response.json();
-
-      if (!data.pending || data.pending.length === 0) {
-        container.innerHTML = '<p style="color:var(--text-tertiary)">No pending uploads - you\'re all caught up!</p>';
+      const res = await fetch(`${State.serverUrl}/api/admin/pending`,{headers:{'x-admin-auth':State.adminToken}});
+      const d = await res.json();
+      if (!d.pending?.length) {
+        wrap.innerHTML = '<p style="color:var(--text3);padding:1rem">✅ No pending uploads — all caught up!</p>';
         return;
       }
-
-      container.innerHTML = '';
-      data.pending.forEach(upload => {
+      wrap.innerHTML = `<h3 style="margin-bottom:1rem;font-weight:600">Pending Review Queue (${d.pending.length})</h3><div class="pending-list"></div>`;
+      const list = wrap.querySelector('.pending-list');
+      d.pending.forEach(u => {
         const el = document.createElement('div');
-        el.className = 'admin-pending-item';
-        const imagesHtml = upload.files.map(f =>
-          `<img src="${AppState.serverUrl}/uploads/${f.filename}" class="admin-pending-img" alt="">`
-        ).join('');
-
-        const profileHtml = upload.profilePic
-          ? `<img src="${AppState.serverUrl}${upload.profilePic.url}" class="admin-pending-profile" alt="">`
-          : '';
-
+        el.className = 'pending-item';
+        const imgs = u.files.map(f=>`<img class="pending-img" src="${State.serverUrl}/uploads/${f.filename}" alt="">`).join('');
+        const profileImg = u.profilePic ? `<img class="pending-profile-img" src="${State.serverUrl}${u.profilePic.url}" alt="">` : '';
         el.innerHTML = `
-          <div class="admin-pending-images">${profileHtml}${imagesHtml}</div>
-          <div class="admin-pending-info">
-            <h4>${upload.username || 'Anonymous'} <span style="font-size:0.8rem;color:var(--text-tertiary)">#${upload.id}</span></h4>
-            <div class="admin-pending-meta">
-              <div>📅 ${Utils.formatDate(upload.timestamp)}</div>
-              <div>📁 ${upload.files.length} files</div>
-              ${upload.profileLink ? `<div>🔗 <a href="${upload.profileLink}" target="_blank">${upload.profileLink}</a></div>` : ''}
+          <div class="pending-imgs">${profileImg}${imgs}</div>
+          <div class="pending-info">
+            <h4>${u.username||'Anonymous'} <span style="font-size:0.75rem;color:var(--text3)">#${u.id}</span></h4>
+            <div class="pending-meta">
+              📅 ${Util.fmtDate(u.timestamp)}<br>
+              📁 ${u.files.length} file(s)
+              ${u.profileLink ? `<br>🔗 <a href="${u.profileLink}" target="_blank">${u.profileLink}</a>` : ''}
             </div>
           </div>
-          <div class="admin-pending-actions">
-            <button class="admin-btn admin-btn-approve" onclick="Admin.approvePending(${upload.id})">✨ Create Card</button>
-            <button class="admin-btn admin-btn-reject" onclick="Admin.rejectPending(${upload.id})">❌ Reject</button>
-          </div>
-        `;
-        container.appendChild(el);
+          <div class="pending-acts">
+            <button class="btn-approve" onclick="Admin.approve(${u.id})">✨ Create Card</button>
+            <button class="btn-reject" onclick="Admin.reject(${u.id})">❌ Reject</button>
+          </div>`;
+        list.appendChild(el);
       });
-    } catch (e) {
-      container.innerHTML = '<p style="color:#ef4444">Error loading queue</p>';
-    }
+    } catch(e) { wrap.innerHTML = '<p style="color:#ef4444;padding:1rem">Error loading queue</p>'; }
   },
 
-  async approvePending(uploadId) {
+  async approve(uploadId) {
     const name = prompt('Card name:') || 'Custom Card';
     const rarity = prompt('Rarity (common/rare/epic/legendary):') || 'rare';
-    const score = parseFloat(prompt('Score (5-10):') || '7.5');
+    const score = parseFloat(prompt('Score (5–10):') || '7.5');
     const grade = prompt('Grade (D/C/B/A/A+/S/S+/SS):') || 'A';
     const description = prompt('Description:') || 'A premium hand-crafted DNA card.';
-
     const stats = {
-      creativity: parseInt(prompt('Creativity (40-99):') || '70'),
-      engagement: parseInt(prompt('Engagement (40-99):') || '70'),
-      consistency: parseInt(prompt('Consistency (40-99):') || '70'),
-      virality: parseInt(prompt('Virality (40-99):') || '70'),
-      aesthetic: parseInt(prompt('Aesthetic (40-99):') || '70'),
-      authenticity: parseInt(prompt('Authenticity (40-99):') || '70')
+      creativity:   parseInt(prompt('Creativity 40-99:')   || '70'),
+      engagement:   parseInt(prompt('Engagement 40-99:')   || '70'),
+      consistency:  parseInt(prompt('Consistency 40-99:')  || '70'),
+      virality:     parseInt(prompt('Virality 40-99:')     || '70'),
+      aesthetic:    parseInt(prompt('Aesthetic 40-99:')    || '70'),
+      authenticity: parseInt(prompt('Authenticity 40-99:') || '70')
     };
-
     try {
-      const response = await fetch(`${AppState.serverUrl}/api/admin/pending/${uploadId}/approve`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-admin-auth': AppState.adminToken
-        },
-        body: JSON.stringify({ cardData: { name, rarity, score, grade, stats, description } })
+      const res = await fetch(`${State.serverUrl}/api/admin/pending/${uploadId}/approve`,{
+        method:'POST',
+        headers:{'Content-Type':'application/json','x-admin-auth':State.adminToken},
+        body: JSON.stringify({cardData:{name,rarity,score,grade,description,stats}})
       });
-      const result = await response.json();
-      if (result.success) {
-        Toast.show('Card approved and created!', 'success');
-        this.loadPending();
-        this.loadStats();
-      }
-    } catch (e) {
-      Toast.show('Approval failed', 'error');
-    }
+      const d = await res.json();
+      if (d.success) { toast('Card approved!','success'); this.loadPending(); this.loadStats(); }
+    } catch(e) { toast('Approval failed','error'); }
   },
 
-  async rejectPending(uploadId) {
+  async reject(uploadId) {
     if (!confirm('Reject this upload?')) return;
     try {
-      await fetch(`${AppState.serverUrl}/api/admin/pending/${uploadId}/reject`, {
-        method: 'POST',
-        headers: { 'x-admin-auth': AppState.adminToken }
+      await fetch(`${State.serverUrl}/api/admin/pending/${uploadId}/reject`,{
+        method:'POST', headers:{'x-admin-auth':State.adminToken}
       });
-      Toast.show('Upload rejected', 'info');
-      this.loadPending();
-      this.loadStats();
-    } catch (e) {
-      Toast.show('Reject failed', 'error');
-    }
+      toast('Upload rejected','info');
+      this.loadPending(); this.loadStats();
+    } catch(e) { toast('Reject failed','error'); }
   },
 
   async loadUploads() {
-    const container = DOM.adminUploadsList();
-    if (!container) return;
-    container.innerHTML = '<p style="color:var(--text-tertiary)">Loading uploads...</p>';
-
+    const wrap = document.getElementById('tab-uploads');
+    if (!wrap) return;
+    wrap.innerHTML = '<p style="color:var(--text3);padding:1rem">Loading…</p>';
     try {
-      const response = await fetch(`${AppState.serverUrl}/api/admin/uploads`, {
-        headers: { 'x-admin-auth': AppState.adminToken }
-      });
-      const data = await response.json();
-
-      if (!data.uploads || data.uploads.length === 0) {
-        container.innerHTML = '<p style="color:var(--text-tertiary)">No uploads yet</p>';
-        return;
-      }
-
-      container.innerHTML = '';
-      data.uploads.forEach(upload => {
+      const res = await fetch(`${State.serverUrl}/api/admin/uploads`,{headers:{'x-admin-auth':State.adminToken}});
+      const d = await res.json();
+      if (!d.uploads?.length) { wrap.innerHTML = '<p style="color:var(--text3);padding:1rem">No uploads yet</p>'; return; }
+      wrap.innerHTML = `<h3 style="margin-bottom:1rem;font-weight:600">Recent Uploads</h3><div class="admin-list"></div>`;
+      const list = wrap.querySelector('.admin-list');
+      d.uploads.forEach(u => {
         const el = document.createElement('div');
-        el.className = 'admin-upload-item';
-        const imagesHtml = upload.files.map(f =>
-          `<img src="${AppState.serverUrl}${f.url}" class="admin-upload-img" alt="" onclick="Admin.viewImage('${AppState.serverUrl}${f.url}')">`
-        ).join('');
-
-        const statusClass = upload.status === 'completed' ? 'status-completed' :
-                           upload.status === 'error' ? 'status-error' : 'status-processing';
-
+        el.className = 'admin-list-item';
+        const stClass = u.status==='completed'?'st-completed':u.status==='error'?'st-error':'st-processing';
         el.innerHTML = `
-          <div class="admin-upload-images">${imagesHtml}</div>
-          <div class="admin-upload-info">
-            <h4>Upload #${upload.id} - ${upload.username || 'Anonymous'}</h4>
-            <div class="admin-upload-meta">
-              <div>📅 ${Utils.formatDate(upload.timestamp)}</div>
-              <div>📁 ${upload.files.length} files</div>
-              ${upload.profileLink ? `<div>🔗 ${upload.profileLink}</div>` : ''}
-              ${upload.cardId ? `<div>🎴 Card: ${upload.cardId}</div>` : ''}
-              ${upload.error ? `<div style="color:#ef4444">❌ ${upload.error}</div>` : ''}
-            </div>
+          <div style="flex:1">
+            <div style="font-weight:600;font-size:0.9rem">#${u.id} — ${u.username||'Anonymous'}</div>
+            <div style="font-size:0.78rem;color:var(--text2);margin-top:0.2rem">📅 ${Util.fmtDate(u.timestamp)} · 📁 ${u.files.length} files${u.profileLink?` · 🔗 ${u.profileLink}`:''}</div>
+            ${u.error ? `<div style="font-size:0.75rem;color:#ef4444;margin-top:0.2rem">❌ ${u.error}</div>` : ''}
           </div>
-          <div class="admin-upload-status ${statusClass}">${upload.status}</div>
-        `;
-        container.appendChild(el);
+          <span class="status-badge ${stClass}">${u.status}</span>`;
+        list.appendChild(el);
       });
-    } catch (e) {
-      container.innerHTML = '<p style="color:#ef4444">Error loading uploads</p>';
-    }
+    } catch(e) { wrap.innerHTML = '<p style="color:#ef4444;padding:1rem">Error loading uploads</p>'; }
   },
 
   async loadCards() {
-    const container = DOM.adminCardsList();
-    if (!container) return;
-    container.innerHTML = '<p style="color:var(--text-tertiary)">Loading cards...</p>';
-
+    const wrap = document.getElementById('tab-cards');
+    if (!wrap) return;
+    wrap.innerHTML = '<p style="color:var(--text3);padding:1rem">Loading…</p>';
     try {
-      const response = await fetch(`${AppState.serverUrl}/api/admin/cards`, {
-        headers: { 'x-admin-auth': AppState.adminToken }
-      });
-      const data = await response.json();
-
-      if (!data.cards || data.cards.length === 0) {
-        container.innerHTML = '<p style="color:var(--text-tertiary)">No cards yet</p>';
-        return;
-      }
-
-      container.innerHTML = '';
-      data.cards.forEach(card => {
+      const res = await fetch(`${State.serverUrl}/api/admin/cards`,{headers:{'x-admin-auth':State.adminToken}});
+      const d = await res.json();
+      if (!d.cards?.length) { wrap.innerHTML = '<p style="color:var(--text3);padding:1rem">No cards yet</p>'; return; }
+      wrap.innerHTML = `<h3 style="margin-bottom:1rem;font-weight:600">All Cards (${d.cards.length})</h3><div class="admin-list"></div>`;
+      const list = wrap.querySelector('.admin-list');
+      d.cards.forEach(card => {
+        const rd = card.rarityData || Util.getRarityData(card.rarity);
+        const srcClass = card.source==='ai'?'src-ai':card.source==='manual'?'src-manual':'src-mock';
         const el = document.createElement('div');
-        el.className = 'admin-card-item';
-        const sourceClass = card.source === 'ai' ? 'source-ai' : card.source === 'manual' ? 'source-manual' : 'source-mock';
-
+        el.className = 'admin-list-item';
         el.innerHTML = `
-          <div class="admin-card-preview" style="background: ${card.rarityData?.color || card.color || '#4b5563'}">
-            ${card.name}
+          <div class="admin-card-swatch" style="background:${rd.gradient}">${card.name.charAt(0)}</div>
+          <div class="admin-list-info">
+            <h4>${card.name} <span style="font-size:0.75rem;color:var(--text3)">@${card.username||'?'}</span></h4>
+            <p>${card.rarity.toUpperCase()} · ⭐${card.score} · ${card.grade} · <span class="source-badge ${srcClass}">${card.source||'?'}</span></p>
           </div>
-          <div class="admin-card-info">
-            <h4>${card.name} <span style="font-size:0.8rem;color:var(--text-tertiary)">@${card.username || 'user'}</span></h4>
-            <div class="admin-card-meta">
-              ${card.rarity.toUpperCase()} | ⭐ ${card.score} | ${card.grade}
-            </div>
-            <span class="admin-card-source ${sourceClass}">${card.source || 'unknown'}</span>
-          </div>
-          <div class="admin-card-actions">
-            <button class="admin-btn admin-btn-delete" onclick="Admin.deleteCard('${card.id}')">Delete</button>
-          </div>
-        `;
-        container.appendChild(el);
+          <button class="btn-reject" style="font-size:0.78rem;padding:0.3rem 0.7rem" onclick="Admin.deleteCard('${card.id}')">Delete</button>`;
+        list.appendChild(el);
       });
-    } catch (e) {
-      container.innerHTML = '<p style="color:#ef4444">Error loading cards</p>';
-    }
+    } catch(e) { wrap.innerHTML = '<p style="color:#ef4444;padding:1rem">Error loading cards</p>'; }
   },
 
-  async createManualCard() {
-    const name = document.getElementById('manualName').value.trim();
-    const rarity = document.getElementById('manualRarity').value;
-    const score = parseFloat(document.getElementById('manualScore').value);
-    const grade = document.getElementById('manualGrade').value;
-    const description = document.getElementById('manualDescription').value.trim();
-    const username = document.getElementById('manualUsername')?.value?.trim() || 'Admin';
-    const profileLink = document.getElementById('manualProfileLink')?.value?.trim() || '';
-
-    if (!name) { Toast.show('Card name required!', 'error'); return; }
-
-    const stats = {
-      creativity: parseInt(document.getElementById('statCreativity').value) || 70,
-      engagement: parseInt(document.getElementById('statEngagement').value) || 70,
-      consistency: parseInt(document.getElementById('statConsistency').value) || 70,
-      virality: parseInt(document.getElementById('statVirality').value) || 70,
-      aesthetic: parseInt(document.getElementById('statAesthetic').value) || 70,
-      authenticity: parseInt(document.getElementById('statAuthenticity').value) || 70
-    };
-
-    try {
-      const response = await fetch(`${AppState.serverUrl}/api/admin/cards`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-admin-auth': AppState.adminToken
-        },
-        body: JSON.stringify({ name, rarity, score, grade, stats, description, username, profileLink })
-      });
-
-      const result = await response.json();
-      if (result.success) {
-        Toast.show(`Card "${name}" created!`, 'success');
-        AudioEngine.success();
-        document.getElementById('manualName').value = '';
-        document.getElementById('manualDescription').value = '';
-        this.loadStats();
-        if (this.currentTab === 'cards') this.loadCards();
-      } else {
-        Toast.show(result.error || 'Failed', 'error');
-        AudioEngine.error();
+  async createCard() {
+    const name = document.getElementById('c-name')?.value?.trim();
+    if (!name) { toast('Card name required','error'); return; }
+    const card = {
+      name,
+      rarity:       document.getElementById('c-rarity')?.value || 'common',
+      score:        parseFloat(document.getElementById('c-score')?.value || '7.5'),
+      grade:        document.getElementById('c-grade')?.value || 'A',
+      description:  document.getElementById('c-desc')?.value?.trim() || '',
+      username:     document.getElementById('c-user')?.value?.trim() || 'Admin',
+      profileLink:  document.getElementById('c-link')?.value?.trim() || '',
+      stats: {
+        creativity:   parseInt(document.getElementById('s-creativity')?.value||70),
+        engagement:   parseInt(document.getElementById('s-engagement')?.value||70),
+        consistency:  parseInt(document.getElementById('s-consistency')?.value||70),
+        virality:     parseInt(document.getElementById('s-virality')?.value||70),
+        aesthetic:    parseInt(document.getElementById('s-aesthetic')?.value||70),
+        authenticity: parseInt(document.getElementById('s-authenticity')?.value||70),
       }
-    } catch (e) {
-      Toast.show('Server error', 'error');
-      AudioEngine.error();
-    }
+    };
+    try {
+      const res = await fetch(`${State.serverUrl}/api/admin/cards`,{
+        method:'POST',
+        headers:{'Content-Type':'application/json','x-admin-auth':State.adminToken},
+        body: JSON.stringify(card)
+      });
+      const d = await res.json();
+      if (d.success) {
+        toast(`Card "${name}" created!`,'success'); SFX.success();
+        document.getElementById('c-name').value = '';
+        document.getElementById('c-desc').value = '';
+        this.loadStats();
+      } else { toast(d.error||'Failed','error'); }
+    } catch(e) { toast('Server error','error'); }
   },
 
   async deleteCard(id) {
     if (!confirm('Delete this card?')) return;
     try {
-      const response = await fetch(`${AppState.serverUrl}/api/admin/cards/${id}`, {
-        method: 'DELETE',
-        headers: { 'x-admin-auth': AppState.adminToken }
+      const res = await fetch(`${State.serverUrl}/api/admin/cards/${id}`,{
+        method:'DELETE', headers:{'x-admin-auth':State.adminToken}
       });
-      const result = await response.json();
-      if (result.success) {
-        Toast.show('Card deleted', 'success');
-        this.loadCards();
-        this.loadStats();
-      }
-    } catch (e) {
-      Toast.show('Delete failed', 'error');
-    }
-  },
-
-  viewImage(url) {
-    const modal = document.createElement('div');
-    modal.className = 'image-modal';
-    modal.innerHTML = `<img src="${url}" alt=""><button class="image-modal-close">&times;</button>`;
-    modal.addEventListener('click', (e) => { if (e.target === modal || e.target.classList.contains('image-modal-close')) modal.remove(); });
-    document.body.appendChild(modal);
+      const d = await res.json();
+      if (d.success) { toast('Deleted','success'); this.loadCards(); this.loadStats(); }
+    } catch(e) { toast('Delete failed','error'); }
   }
 };
-
 window.Admin = Admin;
 
-// ==========================================
-// SCROLL ANIMATIONS
-// ==========================================
-const ScrollAnimations = {
-  observer: null,
-  init() {
-    this.observer = new IntersectionObserver((entries) => {
-      entries.forEach(entry => {
-        if (entry.isIntersecting) {
-          entry.target.style.opacity = '1';
-          entry.target.style.transform = 'translateY(0)';
-        }
-      });
-    }, { threshold: 0.1 });
-
-    document.querySelectorAll('.viral-card, .feature-item, .stat-item, .mini-card').forEach(el => {
-      el.style.opacity = '0';
-      el.style.transform = 'translateY(30px)';
-      el.style.transition = 'opacity 0.6s ease, transform 0.6s ease';
-      this.observer.observe(el);
-    });
-  }
-};
-
-// ==========================================
+// ============================================================
 // KEYBOARD SHORTCUTS
-// ==========================================
-const Keyboard = {
-  init() {
-    document.addEventListener('keydown', (e) => {
-      if (e.shiftKey && e.key === 'A') {
-        e.preventDefault();
-        Navigation.navigateTo('admin');
-        return;
+// ============================================================
+document.addEventListener('keydown', e => {
+  if (e.shiftKey && e.key === 'A') { e.preventDefault(); Navigation.go('admin'); }
+  if (e.key === 'Escape') {
+    if (!document.getElementById('overlay')?.classList.contains('hidden')) return;
+    if (State.page === 'detail')     Navigation.go('collection');
+    else if (State.page !== 'landing') Navigation.go('landing');
+  }
+});
+
+// ============================================================
+// SCROLL ANIMATIONS
+// ============================================================
+function initScrollAnimations() {
+  const els = document.querySelectorAll('.how-step,.rarity-item,.feat,.float-card,.sb-item');
+  const obs = new IntersectionObserver(entries => {
+    entries.forEach(e => {
+      if (e.isIntersecting) {
+        e.target.style.opacity = '1';
+        e.target.style.transform = 'translateY(0)';
       }
-      if (e.key === 'Escape') {
-        if (!DOM.processingOverlay().classList.contains('hidden')) return;
-        if (AppState.currentPage === 'detail') Navigation.back();
-        else if (AppState.currentPage === 'upload') Navigation.navigateTo('landing');
-        else if (AppState.currentPage === 'collection') Navigation.navigateTo('landing');
-        else if (AppState.currentPage === 'admin') Navigation.navigateTo('landing');
-      }
-      if (e.key === ' ' && AppState.currentPage === 'upload') {
-        e.preventDefault();
-        const btn = DOM.generateBtn();
-        if (btn && !btn.disabled) Upload.startGeneration();
-      }
-      if (e.key === '1' && AppState.currentPage !== 'landing') Navigation.navigateTo('landing');
-      if (e.key === '2' && AppState.currentPage !== 'upload') Navigation.navigateTo('upload');
-      if (e.key === '3' && AppState.currentPage !== 'collection') Navigation.navigateTo('collection');
     });
-  }
-};
+  }, {threshold:0.1});
+  els.forEach(el => {
+    el.style.opacity = '0';
+    el.style.transform = 'translateY(24px)';
+    el.style.transition = 'opacity 0.5s ease, transform 0.5s ease';
+    obs.observe(el);
+  });
+}
 
-// ==========================================
-// GLOBAL INIT
-// ==========================================
-function init() {
-  Utils.loadState();
-  AudioEngine.init();
-
-  const st = DOM.soundToggle();
-  if (st) {
-    st.addEventListener('click', () => {
-      AppState.soundEnabled = !AppState.soundEnabled;
-      st.textContent = AppState.soundEnabled ? '🔊' : '🔇';
-      AudioEngine.click();
+// ============================================================
+// PARALLAX ORBS
+// ============================================================
+function initParallax() {
+  document.addEventListener('mousemove', e => {
+    const orbs = document.querySelectorAll('.orb');
+    const cx = e.clientX/window.innerWidth - 0.5;
+    const cy = e.clientY/window.innerHeight - 0.5;
+    orbs.forEach((o, i) => {
+      const f = (i+1)*8;
+      o.style.transform = `translate(${cx*f}px,${cy*f}px)`;
     });
-    st.textContent = AppState.soundEnabled ? '🔊' : '🔇';
-  }
+  });
+}
 
-  const logo = DOM.navbarLogo();
-  if (logo) {
-    logo.addEventListener('click', () => Navigation.navigateTo('landing'));
-    logo.addEventListener('mouseenter', () => AudioEngine.hover());
-  }
+// ============================================================
+// BOOTSTRAP
+// ============================================================
+function boot() {
+  State.load();
+  updateNavStats();
 
-  const cta = DOM.ctaButton();
-  if (cta) cta.addEventListener('click', () => Navigation.navigateTo('upload'));
-  const view = DOM.viewCardsBtn();
-  if (view) view.addEventListener('click', () => Navigation.navigateTo('collection'));
+  // Show landing page
+  document.querySelectorAll('.page').forEach(p => {
+    p.classList.remove('active');
+    p.style.display = 'none';
+  });
+  const landing = document.getElementById('pg-landing');
+  if (landing) { landing.style.display = 'block'; landing.classList.add('active'); }
 
+  // Init modules
   Upload.init();
-  ProfilePic.init();
-  Collection.init();
-  CardDetail.init();
-  ScrollAnimations.init();
-  Keyboard.init();
-
-  Upload.updateNavStats();
-
-  Object.values(DOM.pages).forEach(p => {
-    const el = p();
-    if (el && el.id !== 'landingPage') {
-      el.style.display = 'none';
-      el.classList.remove('active');
-    }
-  });
-
-  document.addEventListener('mousemove', (e) => {
-    const spheres = document.querySelectorAll('.glow-sphere');
-    const x = (e.clientX / window.innerWidth - 0.5) * 20;
-    const y = (e.clientY / window.innerHeight - 0.5) * 20;
-    spheres.forEach((s, i) => {
-      const factor = (i + 1) * 0.5;
-      s.style.transform = `translate(${x * factor}px, ${y * factor}px)`;
-    });
-  });
+  PicUpload.init();
+  initScrollAnimations();
+  initParallax();
+  Landing.init();
 }
 
 if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', init);
+  document.addEventListener('DOMContentLoaded', boot);
 } else {
-  init();
+  boot();
 }
-
-window.Navigation = Navigation;

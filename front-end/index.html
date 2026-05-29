@@ -1,505 +1,421 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Scroll DNA - Your Social Media Trading Card</title>
-    <link rel="stylesheet" href="styles.css">
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Space+Grotesk:wght@400;600;700;800&display=swap" rel="stylesheet">
-    <base target="_blank">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Scroll DNA — Your Social Media Trading Card</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:ital,wght@0,300;0,400;0,500;0,600;1,400&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+  <base target="_blank">
 </head>
-<body class="dark-mode">
-    <div id="app">
-        <!-- Navbar -->
-        <nav class="navbar">
-            <div class="navbar-container">
-                <div class="navbar-logo">
-                    <span class="logo-icon">🧬</span>
-                    Scroll DNA
-                </div>
-                <div class="navbar-controls">
-                    <button id="soundToggle" class="sound-toggle" title="Toggle sound">🔊</button>
-                    <div class="nav-stats">
-                        <span class="stat">🃏 <span id="cardCount">0</span></span>
-                        <span class="stat">⭐ <span id="points">0</span></span>
-                        <span class="stat">🔥 <span id="streak">0</span></span>
-                    </div>
-                </div>
-            </div>
-        </nav>
+<body>
+<div id="app">
 
-        <!-- Processing Overlay -->
-        <div id="processingOverlay" class="processing-overlay hidden">
-            <div class="processing-content">
-                <div class="card-reveal-animation">
-                    <div class="dna-spinner">
-                        <div class="dna-ring"></div>
-                        <div class="dna-ring"></div>
-                        <div class="dna-ring"></div>
-                    </div>
-                </div>
-                <h2>Analyzing Your Scroll DNA...</h2>
-                <div class="progress-container">
-                    <div class="progress-bar">
-                        <div id="progressFill" class="progress-fill"></div>
-                    </div>
-                    <p id="progressText">Uploading screenshots...</p>
-                </div>
-                <div class="ai-status">
-                    <p id="aiStatus">🧬 Sequencing your social genome...</p>
-                </div>
-                <p id="queueStatus" class="queue-status hidden">⏳ Admin is reviewing your DNA... You'll get a premium card!</p>
-            </div>
+  <!-- ───── NAVBAR ───── -->
+  <nav class="navbar" id="navbar">
+    <div class="nav-inner">
+      <button class="nav-logo" onclick="Navigation.go('landing')">
+        <span class="logo-dna">⬡</span>
+        <span>Scroll DNA</span>
+      </button>
+      <div class="nav-right">
+        <div class="nav-stats">
+          <span class="ns-item" id="ns-cards">🃏 <b id="statCards">0</b></span>
+          <span class="ns-item" id="ns-pts">⭐ <b id="statPts">0</b></span>
+          <span class="ns-item" id="ns-streak">🔥 <b id="statStreak">0</b></span>
+        </div>
+        <button id="soundBtn" class="icon-btn" title="Toggle sound" onclick="toggleSound()">🔊</button>
+      </div>
+    </div>
+  </nav>
+
+  <!-- ───── PROCESSING OVERLAY ───── -->
+  <div id="overlay" class="overlay hidden">
+    <div class="overlay-box">
+      <div class="dna-helix">
+        <div class="helix-ring r1"></div>
+        <div class="helix-ring r2"></div>
+        <div class="helix-ring r3"></div>
+        <div class="helix-core">🧬</div>
+      </div>
+      <h2 class="overlay-title">Sequencing Your DNA...</h2>
+      <div class="progress-track">
+        <div id="progBar" class="progress-fill"></div>
+      </div>
+      <p id="progLabel" class="prog-label">Uploading screenshots...</p>
+      <p id="aiLabel" class="ai-label">🔬 Initializing analysis</p>
+      <div id="queueMsg" class="queue-msg hidden">
+        ⏳ Admin is reviewing your profile — you'll get a premium hand-crafted card!
+      </div>
+    </div>
+  </div>
+
+  <!-- ───── PAGES ───── -->
+  <main id="main">
+
+    <!-- ===== LANDING ===== -->
+    <div id="pg-landing" class="page active">
+
+      <section class="hero">
+        <div class="hero-bg">
+          <div class="orb o1"></div>
+          <div class="orb o2"></div>
+          <div class="orb o3"></div>
+          <div class="grid-lines"></div>
+        </div>
+        <div class="hero-body">
+          <div class="hero-badge">✦ AI-Powered Social Identity</div>
+          <h1 class="hero-h1">
+            Your Feed.<br>
+            <span class="h1-accent">One Card.</span>
+          </h1>
+          <p class="hero-sub">Upload your Instagram or TikTok screenshots. Our AI reads your personality, assigns your rarity, and mints your trading card. 🧬</p>
+          <div class="hero-cta">
+            <button class="btn-primary" onclick="Navigation.go('upload')">
+              <span>Generate My Card</span>
+              <span class="btn-arrow">→</span>
+            </button>
+            <button class="btn-ghost" onclick="Upload.instant()">⚡ Instant Card</button>
+          </div>
+          <div class="hero-proof">
+            <span>2.4M cards minted</span>
+            <span class="dot">·</span>
+            <span>847K collectors</span>
+            <span class="dot">·</span>
+            <span>#2 on TikTok</span>
+          </div>
         </div>
 
-        <!-- Main Container -->
-        <main id="pageContainer" class="page-container">
-            <!-- LANDING PAGE -->
-            <div id="landingPage" class="page active">
-                <section class="hero-cards">
-                    <div class="hero-background">
-                        <div class="glow-sphere glow-1"></div>
-                        <div class="glow-sphere glow-2"></div>
-                        <div class="glow-sphere glow-3"></div>
-                    </div>
+        <!-- floating card previews -->
+        <div class="hero-cards-float">
+          <div class="float-card fc-left legendary">
+            <div class="fc-badge">LEGENDARY</div>
+            <div class="fc-avatar">👑</div>
+            <div class="fc-name">Algorithm Whisperer</div>
+            <div class="fc-score">⭐ 9.8 · SS</div>
+          </div>
+          <div class="float-card fc-center epic">
+            <div class="fc-badge">EPIC</div>
+            <div class="fc-avatar">✨</div>
+            <div class="fc-name">Aesthetic Hustler</div>
+            <div class="fc-score">⭐ 8.9 · S+</div>
+          </div>
+          <div class="float-card fc-right rare">
+            <div class="fc-badge">RARE</div>
+            <div class="fc-avatar">🌙</div>
+            <div class="fc-name">Night Scroller</div>
+            <div class="fc-score">⭐ 8.1 · A+</div>
+          </div>
+        </div>
+      </section>
 
-                    <div class="hero-content">
-                        <h1 class="hero-title">
-                            <span class="title-word">Your</span>
-                            <span class="title-word">Social</span>
-                            <span class="title-word">Media</span>
-                            <span class="title-word">Is</span>
-                            <span class="title-word">A</span>
-                            <span class="title-word">Trading Card</span>
-                        </h1>
-                        <p class="hero-subtitle">Upload your Instagram or TikTok. AI analyzes your personality. Get your premium trading card. 🧬</p>
+      <!-- How it works -->
+      <section class="section how-section">
+        <h2 class="section-title">How It Works</h2>
+        <div class="how-steps">
+          <div class="how-step">
+            <div class="step-num">01</div>
+            <div class="step-icon">📸</div>
+            <h3>Upload Your Feed</h3>
+            <p>Screenshot your Instagram or TikTok homepage + up to 10 posts. Add your profile pic too.</p>
+          </div>
+          <div class="step-arrow">→</div>
+          <div class="how-step">
+            <div class="step-num">02</div>
+            <div class="step-icon">🤖</div>
+            <h3>AI Analyzes You</h3>
+            <p>Groq Vision AI scans your content, detects patterns, and sequences your social DNA.</p>
+          </div>
+          <div class="step-arrow">→</div>
+          <div class="how-step">
+            <div class="step-num">03</div>
+            <div class="step-icon">🎴</div>
+            <h3>Get Your Card</h3>
+            <p>Receive a premium trading card with your rarity, stats, grade, and personality name.</p>
+          </div>
+        </div>
+      </section>
 
-                        <div class="cta-group">
-                            <button class="cta-button primary" id="ctaButton">
-                                <span class="button-text">🧬 Generate Your Card</span>
-                                <span class="button-glow"></span>
-                            </button>
-                            <button class="cta-button secondary" id="instantCardBtn">
-                                ⚡ Instant Card
-                            </button>
-                            <button class="cta-button secondary" id="viewCardsBtn">
-                                👁️ View Collection
-                            </button>
-                        </div>
-                    </div>
-                </section>
+      <!-- Rarity System -->
+      <section class="section rarity-section">
+        <h2 class="section-title">Rarity System</h2>
+        <p class="section-sub">What's your DNA worth?</p>
+        <div class="rarity-grid">
+          <div class="rarity-item common">
+            <div class="ri-glow"></div>
+            <div class="ri-label">COMMON</div>
+            <div class="ri-prob">70% chance</div>
+            <div class="ri-pts">1× pts</div>
+            <div class="ri-desc">The everyday scroller — still part of the collection</div>
+          </div>
+          <div class="rarity-item rare">
+            <div class="ri-glow"></div>
+            <div class="ri-label">RARE</div>
+            <div class="ri-prob">22% chance</div>
+            <div class="ri-pts">10× pts</div>
+            <div class="ri-desc">Above average energy. Your feed stands out.</div>
+          </div>
+          <div class="rarity-item epic">
+            <div class="ri-glow"></div>
+            <div class="ri-label">EPIC</div>
+            <div class="ri-prob">7% chance</div>
+            <div class="ri-pts">25× pts</div>
+            <div class="ri-desc">Exceptional presence. Collectors want this.</div>
+          </div>
+          <div class="rarity-item legendary">
+            <div class="ri-glow"></div>
+            <div class="ri-label">LEGENDARY</div>
+            <div class="ri-prob">1% chance</div>
+            <div class="ri-pts">100× pts</div>
+            <div class="ri-desc">Once-in-a-generation social DNA. Frame it.</div>
+          </div>
+        </div>
+      </section>
 
-                <!-- Why Cards Go Viral -->
-                <section class="viral-section">
-                    <h2>Why Scroll DNA Cards Dominate</h2>
-                    <div class="viral-grid">
-                        <div class="viral-card">
-                            <div class="viral-icon">🎯</div>
-                            <h3>Collector Psychology</h3>
-                            <p>People obsess over collecting complete DNA sets</p>
-                        </div>
-                        <div class="viral-card">
-                            <div class="viral-icon">🏆</div>
-                            <h3>Rarity & Status</h3>
-                            <p>Common, Rare, Epic, Legendary - flex your rarity</p>
-                        </div>
-                        <div class="viral-card">
-                            <div class="viral-icon">👤</div>
-                            <h3>Your Face on the Card</h3>
-                            <p>Upload your profile pic - become the star</p>
-                        </div>
-                        <div class="viral-card">
-                            <div class="viral-icon">🤖</div>
-                            <h3>Real AI Analysis</h3>
-                            <p>Powered by Groq vision AI - actually intelligent</p>
-                        </div>
-                    </div>
-                </section>
+      <!-- Stats Banner -->
+      <section class="stats-banner">
+        <div class="sb-item"><span class="sb-num" data-target="2400000">0</span><span class="sb-lbl">Cards Minted</span></div>
+        <div class="sb-item"><span class="sb-num" data-target="847000">0</span><span class="sb-lbl">Active Collectors</span></div>
+        <div class="sb-item"><span class="sb-num" data-target="156">0</span><span class="sb-lbl">Legendary Cards</span></div>
+        <div class="sb-item"><span class="sb-num" data-target="2">0</span><span class="sb-lbl">Trending TikTok</span></div>
+      </section>
 
-                <!-- Results Preview -->
-                <section class="results-preview">
-                    <h2>Latest DNA Cards</h2>
-                    <p class="preview-subtitle">Real cards analyzed by AI</p>
-                    <div class="preview-cards-grid">
-                        <div class="card-preview-item">
-                            <div class="mini-card common">
-                                <div class="card-rarity">COMMON</div>
-                                <div class="card-name">Gym Addict</div>
-                                <div class="card-stats">⭐ 7.2 | A</div>
-                            </div>
-                        </div>
-                        <div class="card-preview-item">
-                            <div class="mini-card rare">
-                                <div class="card-rarity">RARE</div>
-                                <div class="card-name">Late Night Scroller</div>
-                                <div class="card-stats">⭐ 8.5 | S</div>
-                            </div>
-                        </div>
-                        <div class="card-preview-item">
-                            <div class="mini-card epic">
-                                <div class="card-rarity">EPIC</div>
-                                <div class="card-name">Aesthetic Hustler</div>
-                                <div class="card-stats">⭐ 8.9 | S+</div>
-                            </div>
-                        </div>
-                        <div class="card-preview-item">
-                            <div class="mini-card legendary">
-                                <div class="card-rarity">LEGENDARY</div>
-                                <div class="card-name">Algorithm Whisperer</div>
-                                <div class="card-stats">⭐ 9.8 | SS</div>
-                            </div>
-                        </div>
-                    </div>
-                </section>
+      <!-- Features -->
+      <section class="section features-section">
+        <h2 class="section-title">Why Scroll DNA Cards Go Viral</h2>
+        <div class="features-grid">
+          <div class="feat"><span class="feat-icon">🎯</span><h3>Collector Psychology</h3><p>People obsess over completing DNA sets. Share yours to start a chain.</p></div>
+          <div class="feat"><span class="feat-icon">👤</span><h3>Your Face On It</h3><p>Upload your profile pic — become the star of your own trading card.</p></div>
+          <div class="feat"><span class="feat-icon">🤖</span><h3>Real AI Analysis</h3><p>Groq Vision AI actually reads your content — not random generation.</p></div>
+          <div class="feat"><span class="feat-icon">📊</span><h3>Six Stats</h3><p>Creativity, Virality, Aesthetic, Engagement, Consistency, Authenticity.</p></div>
+          <div class="feat"><span class="feat-icon">🔒</span><h3>Privacy First</h3><p>Images are analyzed then discarded. We don't store your feed.</p></div>
+          <div class="feat"><span class="feat-icon">⚡</span><h3>Instant Option</h3><p>No screenshots? Hit Instant Card for a randomized pull in seconds.</p></div>
+        </div>
+      </section>
 
-                <!-- Features -->
-                <section class="features-section">
-                    <h2>🧬 Scroll DNA Features</h2>
-                    <div class="features-grid">
-                        <div class="feature-item">
-                            <span class="feature-emoji">⚡</span>
-                            <h3>Real AI Analysis</h3>
-                            <p>Powered by Groq vision AI</p>
-                        </div>
-                        <div class="feature-item">
-                            <span class="feature-emoji">👤</span>
-                            <h3>Profile Picture</h3>
-                            <p>Your face on your trading card</p>
-                        </div>
-                        <div class="feature-item">
-                            <span class="feature-emoji">🔗</span>
-                            <h3>Link Your Profile</h3>
-                            <p>Paste Instagram or TikTok link</p>
-                        </div>
-                        <div class="feature-item">
-                            <span class="feature-emoji">🎨</span>
-                            <h3>Rarity System</h3>
-                            <p>Legendary cards are 100x rarer</p>
-                        </div>
-                        <div class="feature-item">
-                            <span class="feature-emoji">📊</span>
-                            <h3>Live Stats</h3>
-                            <p>Track your collection progress</p>
-                        </div>
-                        <div class="feature-item">
-                            <span class="feature-emoji">🔒</span>
-                            <h3>Privacy First</h3>
-                            <p>Images processed, never stored</p>
-                        </div>
-                    </div>
-                </section>
-
-                <!-- Stats Counter -->
-                <section class="stats-section">
-                    <div class="stat-item">
-                        <h3>2.4M</h3>
-                        <p>DNA Cards Generated</p>
-                    </div>
-                    <div class="stat-item">
-                        <h3>847K</h3>
-                        <p>Active Collectors</p>
-                    </div>
-                    <div class="stat-item">
-                        <h3>156</h3>
-                        <p>Legendary Cards</p>
-                    </div>
-                    <div class="stat-item">
-                        <h3>#2</h3>
-                        <p>Trending on TikTok</p>
-                    </div>
-                </section>
-            </div>
-
-            <!-- UPLOAD PAGE -->
-            <div id="uploadPage" class="page">
-                <div class="upload-container">
-                    <h1>🧬 Generate Your DNA Card</h1>
-                    <p class="upload-subtitle">Upload screenshots + your profile pic for a premium trading card</p>
-
-                    <!-- Profile Info -->
-                    <div class="profile-info-section">
-                        <div class="form-group">
-                            <label>Your Name / Username</label>
-                            <input type="text" id="usernameInput" placeholder="e.g., @yourhandle" maxlength="30">
-                        </div>
-                        <div class="form-group">
-                            <label>Instagram or TikTok Link</label>
-                            <input type="url" id="profileLinkInput" placeholder="https://instagram.com/yourhandle">
-                        </div>
-                    </div>
-
-                    <!-- Profile Picture Upload -->
-                    <div class="profile-pic-upload">
-                        <h3>👤 Profile Picture</h3>
-                        <div id="profilePicZone" class="profile-pic-zone">
-                            <div class="profile-pic-preview" id="profilePicPreview">
-                                <span>📷</span>
-                                <p>Click to upload your profile pic</p>
-                            </div>
-                            <input type="file" id="profilePicInput" accept="image/*" class="file-input">
-                        </div>
-                        <p class="file-hint">This will appear on your trading card like a sports card!</p>
-                    </div>
-
-                    <!-- Upload Zone -->
-                    <div id="dropZone" class="drop-zone">
-                        <div class="drop-content">
-                            <div class="drop-icon">📸</div>
-                            <h3>Drag your feed screenshots here</h3>
-                            <p>1 homepage + up to 10 reels/posts</p>
-                            <p class="file-hint">JPG, PNG, MP4 • Max 50MB</p>
-                        </div>
-                        <input type="file" id="fileInput" multiple accept="image/*,video/*" class="file-input">
-                    </div>
-
-                    <!-- File List -->
-                    <div id="fileList" class="file-list hidden">
-                        <h3>📁 Screenshots (<span id="fileCount">0</span>/11)</h3>
-                        <div id="uploadedFiles" class="uploaded-files"></div>
-                    </div>
-
-                    <!-- Action Buttons -->
-                    <div class="upload-actions">
-                        <button id="generateBtn" class="primary-button" disabled>
-                            🧬 Generate DNA Card
-                        </button>
-                        <button id="instantUploadBtn" class="secondary-button">
-                            ⚡ Instant Card
-                        </button>
-                        <button id="clearBtn" class="secondary-button">
-                            Clear
-                        </button>
-                    </div>
-
-                    <p class="disclaimer">
-                        ✅ AI analyzes your images in real-time. If admin is online, you may get a premium hand-crafted card!
-                    </p>
-                </div>
-            </div>
-
-            <!-- CARDS COLLECTION PAGE -->
-            <div id="collectionPage" class="page">
-                <div class="collection-container">
-                    <div class="collection-header">
-                        <h1>🃏 Your DNA Collection</h1>
-                        <div class="collection-stats">
-                            <div class="stat-box">
-                                <span class="stat-label">Total Cards</span>
-                                <span id="totalCards" class="stat-value">0</span>
-                            </div>
-                            <div class="stat-box">
-                                <span class="stat-label">Legendary 👑</span>
-                                <span id="legendaryCount" class="stat-value">0</span>
-                            </div>
-                            <div class="stat-box">
-                                <span class="stat-label">Points</span>
-                                <span id="totalPoints" class="stat-value">0</span>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Filter Section -->
-                    <div class="filter-section">
-                        <button class="filter-btn active" data-filter="all">📋 All</button>
-                        <button class="filter-btn" data-filter="common">🟩 Common</button>
-                        <button class="filter-btn" data-filter="rare">🟦 Rare</button>
-                        <button class="filter-btn" data-filter="epic">🟪 Epic</button>
-                        <button class="filter-btn" data-filter="legendary">🟨 Legendary</button>
-                    </div>
-
-                    <!-- Cards Grid -->
-                    <div id="cardsGrid" class="cards-grid">
-                        <div class="empty-state">
-                            <p>📭 No DNA cards yet. Generate your first card now!</p>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- CARD DETAIL PAGE -->
-            <div id="cardDetailPage" class="page">
-                <div class="card-detail-container">
-                    <button class="back-button" onclick="Navigation.navigateTo('collection')">← Back to Collection</button>
-
-                    <div class="card-detail-content">
-                        <!-- Large Card Display -->
-                        <div id="cardDisplay" class="card-display"></div>
-
-                        <!-- Card Info -->
-                        <div class="card-info-panel">
-                            <div id="cardDetailInfo" class="detail-info"></div>
-
-                            <!-- Action Buttons -->
-                            <div class="card-actions">
-                                <button id="shareCardBtn" class="action-button primary">📤 Share</button>
-                                <button id="downloadCardBtn" class="action-button">📥 Download</button>
-                                <button id="rerollCardBtn" class="action-button">🔄 Re-roll (50 pts)</button>
-                            </div>
-
-                            <!-- Card Stats -->
-                            <div class="card-stats-detail">
-                                <h3>Detailed Stats</h3>
-                                <div id="statsDetail" class="stats-detail-grid"></div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- ADMIN DASHBOARD PAGE -->
-            <div id="adminPage" class="page">
-                <div class="admin-container">
-                    <h1>🔐 Scroll DNA Admin</h1>
-
-                    <!-- Admin Login -->
-                    <div id="adminLogin" class="admin-login">
-                        <div class="login-box">
-                            <h2>Admin Access</h2>
-                            <input type="password" id="adminPassword" placeholder="Enter admin password">
-                            <button id="adminLoginBtn" class="primary-button">Login</button>
-                            <p class="admin-hint">Press Shift+A on any page to open admin</p>
-                        </div>
-                    </div>
-
-                    <!-- Admin Content -->
-                    <div id="adminContent" class="admin-content hidden">
-                        <div class="admin-header">
-                            <h2>DNA Lab Control Center</h2>
-                            <div class="admin-header-controls">
-                                <button id="adminOnlineToggle" class="admin-toggle online">🟢 Online Mode</button>
-                                <button id="adminLogoutBtn" class="secondary-button">Logout</button>
-                            </div>
-                        </div>
-
-                        <!-- Notification Bell -->
-                        <div class="notification-bell" id="notificationBell">
-                            <span class="bell-icon">🔔</span>
-                            <span class="bell-count" id="bellCount">0</span>
-                        </div>
-
-                        <!-- Stats Cards -->
-                        <div class="admin-stats-grid" id="adminStats">
-                            <div class="admin-stat-card">
-                                <span class="admin-stat-value" id="statTotalUploads">0</span>
-                                <span class="admin-stat-label">Total Uploads</span>
-                            </div>
-                            <div class="admin-stat-card">
-                                <span class="admin-stat-value" id="statTotalCards">0</span>
-                                <span class="admin-stat-label">Total Cards</span>
-                            </div>
-                            <div class="admin-stat-card">
-                                <span class="admin-stat-value" id="statPending">0</span>
-                                <span class="admin-stat-label">Pending Review</span>
-                            </div>
-                            <div class="admin-stat-card">
-                                <span class="admin-stat-value" id="statAICards">0</span>
-                                <span class="admin-stat-label">AI Cards</span>
-                            </div>
-                        </div>
-
-                        <!-- Tabs -->
-                        <div class="admin-tabs">
-                            <button class="admin-tab active" data-tab="pending">⏸️ Pending Queue</button>
-                            <button class="admin-tab" data-tab="uploads">📤 Uploads</button>
-                            <button class="admin-tab" data-tab="cards">🎴 All Cards</button>
-                            <button class="admin-tab" data-tab="create">✍️ Create Card</button>
-                        </div>
-
-                        <!-- Pending Tab -->
-                        <div id="pendingTab" class="admin-section active">
-                            <h3>Pending Review Queue</h3>
-                            <p class="admin-section-subtitle">Users are waiting for your expert card creation!</p>
-                            <div id="pendingList" class="admin-pending-list"></div>
-                        </div>
-
-                        <!-- Uploads Tab -->
-                        <div id="uploadsTab" class="admin-section hidden">
-                            <h3>Recent Uploads</h3>
-                            <div id="adminUploadsList" class="admin-uploads-list"></div>
-                        </div>
-
-                        <!-- Cards Tab -->
-                        <div id="cardsTab" class="admin-section hidden">
-                            <h3>All DNA Cards</h3>
-                            <div id="adminCardsList" class="admin-cards-list"></div>
-                        </div>
-
-                        <!-- Create Card Tab -->
-                        <div id="createTab" class="admin-section hidden">
-                            <h3>Create Manual DNA Card</h3>
-                            <div class="create-card-form">
-                                <div class="form-group">
-                                    <label>Card Name</label>
-                                    <input type="text" id="manualName" placeholder="e.g., Gym Addict">
-                                </div>
-                                <div class="form-row">
-                                    <div class="form-group">
-                                        <label>Username</label>
-                                        <input type="text" id="manualUsername" placeholder="@handle">
-                                    </div>
-                                    <div class="form-group">
-                                        <label>Profile Link</label>
-                                        <input type="text" id="manualProfileLink" placeholder="https://...">
-                                    </div>
-                                </div>
-                                <div class="form-group">
-                                    <label>Rarity</label>
-                                    <select id="manualRarity">
-                                        <option value="common">Common</option>
-                                        <option value="rare">Rare</option>
-                                        <option value="epic">Epic</option>
-                                        <option value="legendary">Legendary</option>
-                                    </select>
-                                </div>
-                                <div class="form-row">
-                                    <div class="form-group">
-                                        <label>Score (5.0-10.0)</label>
-                                        <input type="number" id="manualScore" min="5" max="10" step="0.1" value="7.5">
-                                    </div>
-                                    <div class="form-group">
-                                        <label>Grade</label>
-                                        <select id="manualGrade">
-                                            <option value="D">D</option>
-                                            <option value="C">C</option>
-                                            <option value="B">B</option>
-                                            <option value="A">A</option>
-                                            <option value="A+">A+</option>
-                                            <option value="S">S</option>
-                                            <option value="S+">S+</option>
-                                            <option value="SS">SS</option>
-                                        </select>
-                                    </div>
-                                </div>
-                                <div class="form-group">
-                                    <label>Description</label>
-                                    <textarea id="manualDescription" rows="3" placeholder="Describe this card..."></textarea>
-                                </div>
-                                <div class="form-row stats-row">
-                                    <div class="form-group"><label>Creativity</label><input type="number" id="statCreativity" min="40" max="99" value="70"></div>
-                                    <div class="form-group"><label>Engagement</label><input type="number" id="statEngagement" min="40" max="99" value="70"></div>
-                                    <div class="form-group"><label>Consistency</label><input type="number" id="statConsistency" min="40" max="99" value="70"></div>
-                                </div>
-                                <div class="form-row stats-row">
-                                    <div class="form-group"><label>Virality</label><input type="number" id="statVirality" min="40" max="99" value="70"></div>
-                                    <div class="form-group"><label>Aesthetic</label><input type="number" id="statAesthetic" min="40" max="99" value="70"></div>
-                                    <div class="form-group"><label>Authenticity</label><input type="number" id="statAuthenticity" min="40" max="99" value="70"></div>
-                                </div>
-                                <button id="createCardBtn" class="primary-button">✨ Create DNA Card</button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </main>
-
-        <!-- Footer -->
-        <footer class="footer">
-            <p>Scroll DNA &copy; 2024 | AI-Powered Social Trading Cards | Built with Groq</p>
-        </footer>
+      <div class="landing-cta-bar">
+        <button class="btn-primary btn-xl" onclick="Navigation.go('upload')">🧬 Generate Your Card — It's Free</button>
+        <button class="btn-ghost" onclick="Navigation.go('collection')">👁 View My Collection</button>
+      </div>
     </div>
 
-    <script src="script.js"></script>
+    <!-- ===== UPLOAD ===== -->
+    <div id="pg-upload" class="page hidden">
+      <div class="upload-wrap">
+        <div class="upload-header">
+          <button class="back-link" onclick="Navigation.go('landing')">← Back</button>
+          <h1>Generate Your DNA Card</h1>
+          <p class="upload-sub">Upload screenshots + your profile pic for an AI-analyzed trading card</p>
+        </div>
+
+        <!-- Profile info row -->
+        <div class="form-row-2">
+          <div class="field-group">
+            <label for="inUsername">Username / Handle</label>
+            <input type="text" id="inUsername" placeholder="@yourhandle" maxlength="30" autocomplete="off">
+          </div>
+          <div class="field-group">
+            <label for="inLink">Instagram or TikTok Link</label>
+            <input type="url" id="inLink" placeholder="https://instagram.com/yourhandle">
+          </div>
+        </div>
+
+        <!-- Profile pic -->
+        <div class="pic-section">
+          <h3>👤 Profile Picture <span class="optional-tag">Optional — appears on your card</span></h3>
+          <div class="pic-zone" id="picZone" onclick="document.getElementById('picInput').click()" title="Click to upload">
+            <div id="picPreview" class="pic-preview-inner">
+              <span class="pic-placeholder-icon">📷</span>
+              <span class="pic-placeholder-txt">Click to upload</span>
+            </div>
+            <input type="file" id="picInput" accept="image/*" class="file-hidden">
+          </div>
+        </div>
+
+        <!-- Drop zone -->
+        <div id="dropZone" class="drop-zone" onclick="document.getElementById('fileInput').click()">
+          <div class="dz-inner">
+            <div class="dz-icon">📸</div>
+            <h3>Drag screenshots here, or click to browse</h3>
+            <p>1 homepage screenshot + up to 10 posts or reels</p>
+            <p class="dz-hint">JPG, PNG, MP4 · Max 50MB total</p>
+          </div>
+          <input type="file" id="fileInput" multiple accept="image/*,video/*" class="file-hidden">
+        </div>
+
+        <!-- File list -->
+        <div id="fileListWrap" class="file-list-wrap hidden">
+          <div class="fl-header">
+            <span>📁 Screenshots (<span id="fileCount">0</span>/11)</span>
+            <button onclick="Upload.clear()" class="fl-clear">Clear all</button>
+          </div>
+          <div id="fileGrid" class="file-grid"></div>
+        </div>
+
+        <!-- Actions -->
+        <div class="upload-actions">
+          <button id="generateBtn" class="btn-primary btn-lg" disabled onclick="Upload.start()">
+            🧬 Generate DNA Card
+          </button>
+          <button class="btn-ghost btn-lg" onclick="Upload.instant()">⚡ Instant Card</button>
+        </div>
+
+        <p class="upload-disclaimer">
+          ✅ AI analyzes your images in real-time. Admin may hand-craft your card if online.
+        </p>
+      </div>
+    </div>
+
+    <!-- ===== COLLECTION ===== -->
+    <div id="pg-collection" class="page hidden">
+      <div class="collection-wrap">
+        <div class="col-header">
+          <h1>🃏 DNA Collection</h1>
+          <div class="col-stats">
+            <div class="cs-box"><span class="cs-val" id="colTotal">0</span><span class="cs-lbl">Total</span></div>
+            <div class="cs-box legend-box"><span class="cs-val" id="colLegend">0</span><span class="cs-lbl">👑 Legendary</span></div>
+            <div class="cs-box"><span class="cs-val" id="colPts">0</span><span class="cs-lbl">Points</span></div>
+          </div>
+        </div>
+
+        <div class="filter-bar">
+          <button class="fb active" data-f="all" onclick="Collection.filter(this,'all')">All</button>
+          <button class="fb" data-f="legendary" onclick="Collection.filter(this,'legendary')">👑 Legendary</button>
+          <button class="fb" data-f="epic" onclick="Collection.filter(this,'epic')">💜 Epic</button>
+          <button class="fb" data-f="rare" onclick="Collection.filter(this,'rare')">💙 Rare</button>
+          <button class="fb" data-f="common" onclick="Collection.filter(this,'common')">🩶 Common</button>
+        </div>
+
+        <div id="cardsGrid" class="cards-grid"></div>
+      </div>
+    </div>
+
+    <!-- ===== CARD DETAIL ===== -->
+    <div id="pg-detail" class="page hidden">
+      <div class="detail-wrap">
+        <button class="back-link" onclick="Navigation.go('collection')">← Back to Collection</button>
+        <div class="detail-layout">
+          <div id="cardCanvas" class="card-canvas"></div>
+          <div class="detail-panel">
+            <div id="detailInfo" class="detail-info"></div>
+            <div class="detail-actions">
+              <button class="btn-primary" onclick="Detail.share()">📤 Share Card</button>
+              <button class="btn-ghost" onclick="Detail.download()">📥 Download</button>
+              <button class="btn-ghost reroll-btn" onclick="Detail.reroll()">🔄 Re-roll <span class="reroll-cost">(50 pts)</span></button>
+            </div>
+            <div class="stats-section-detail">
+              <h3>Stats Breakdown</h3>
+              <div id="statsGrid" class="stats-grid"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== ADMIN ===== -->
+    <div id="pg-admin" class="page hidden">
+      <div class="admin-wrap">
+        <h1>🔐 Admin Panel</h1>
+
+        <!-- Login -->
+        <div id="adminLogin" class="admin-login-box">
+          <h2>Admin Access</h2>
+          <p class="admin-hint">Press <kbd>Shift+A</kbd> anywhere to open this panel</p>
+          <div class="login-row">
+            <input type="password" id="adminPw" placeholder="Admin password" onkeypress="if(e.key==='Enter')Admin.login()">
+            <button class="btn-primary" onclick="Admin.login()">Login</button>
+          </div>
+        </div>
+
+        <!-- Content -->
+        <div id="adminContent" class="admin-content hidden">
+          <div class="admin-topbar">
+            <h2>DNA Lab Control Center</h2>
+            <div class="admin-topbar-right">
+              <button id="onlineToggle" class="admin-mode-btn online" onclick="Admin.toggleOnline()">🟢 Online</button>
+              <button class="btn-ghost btn-sm" onclick="Admin.logout()">Logout</button>
+            </div>
+          </div>
+
+          <div id="notifBell" class="notif-bell" onclick="Admin.clearNotifs()">
+            🔔 <span id="bellCount" class="bell-badge hidden">0</span>
+          </div>
+
+          <div class="admin-stats-row" id="adminStatRow"></div>
+
+          <div class="admin-tabs">
+            <button class="atab active" onclick="Admin.tab(this,'pending')">⏸ Pending Queue</button>
+            <button class="atab" onclick="Admin.tab(this,'uploads')">📤 Uploads</button>
+            <button class="atab" onclick="Admin.tab(this,'cards')">🎴 All Cards</button>
+            <button class="atab" onclick="Admin.tab(this,'create')">✍️ Create Card</button>
+          </div>
+
+          <div id="tab-pending" class="admin-tab-panel active"></div>
+          <div id="tab-uploads" class="admin-tab-panel hidden"></div>
+          <div id="tab-cards" class="admin-tab-panel hidden"></div>
+          <div id="tab-create" class="admin-tab-panel hidden">
+            <div class="create-form">
+              <div class="form-row-2">
+                <div class="field-group"><label>Card Name</label><input id="c-name" placeholder="e.g. Gym Addict"></div>
+                <div class="field-group"><label>Username</label><input id="c-user" placeholder="@handle"></div>
+              </div>
+              <div class="field-group"><label>Profile Link</label><input id="c-link" type="url" placeholder="https://..."></div>
+              <div class="form-row-3">
+                <div class="field-group">
+                  <label>Rarity</label>
+                  <select id="c-rarity">
+                    <option value="common">Common</option>
+                    <option value="rare">Rare</option>
+                    <option value="epic">Epic</option>
+                    <option value="legendary">Legendary</option>
+                  </select>
+                </div>
+                <div class="field-group"><label>Score (5–10)</label><input id="c-score" type="number" min="5" max="10" step="0.1" value="7.5"></div>
+                <div class="field-group">
+                  <label>Grade</label>
+                  <select id="c-grade">
+                    <option>D</option><option>C</option><option>B</option>
+                    <option>A</option><option>A+</option><option>S</option><option value="S+" selected>S+</option><option>SS</option>
+                  </select>
+                </div>
+              </div>
+              <div class="field-group"><label>Description</label><textarea id="c-desc" rows="3" placeholder="Describe this card..."></textarea></div>
+              <div class="stats-inputs">
+                <div class="field-group"><label>Creativity</label><input id="s-creativity" type="number" min="40" max="99" value="70"></div>
+                <div class="field-group"><label>Engagement</label><input id="s-engagement" type="number" min="40" max="99" value="70"></div>
+                <div class="field-group"><label>Consistency</label><input id="s-consistency" type="number" min="40" max="99" value="70"></div>
+                <div class="field-group"><label>Virality</label><input id="s-virality" type="number" min="40" max="99" value="70"></div>
+                <div class="field-group"><label>Aesthetic</label><input id="s-aesthetic" type="number" min="40" max="99" value="70"></div>
+                <div class="field-group"><label>Authenticity</label><input id="s-authenticity" type="number" min="40" max="99" value="70"></div>
+              </div>
+              <button class="btn-primary" onclick="Admin.createCard()">✨ Create Card</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- ───── FOOTER ───── -->
+  <footer class="footer">
+    <div class="footer-inner">
+      <span class="footer-logo">⬡ Scroll DNA</span>
+      <span>AI-Powered Social Trading Cards · Built with Groq</span>
+      <div class="footer-links">
+        <button onclick="Navigation.go('landing')" class="fl-link">Home</button>
+        <button onclick="Navigation.go('upload')" class="fl-link">Generate</button>
+        <button onclick="Navigation.go('collection')" class="fl-link">Collection</button>
+      </div>
+    </div>
+  </footer>
+
+  <!-- Toast container -->
+  <div id="toasts" class="toast-wrap"></div>
+
+</div>
+<script src="script.js"></script>
 </body>
 </html>
