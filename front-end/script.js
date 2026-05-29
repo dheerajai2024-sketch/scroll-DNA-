@@ -1,7 +1,7 @@
 /**
  * ==========================================
- * INSTAMIND CARDS - script.js (Frontend)
- * Admin Dashboard: View uploads + Manual card creation
+ * SCROLL DNA - script.js
+ * Admin Notifications + Profile Cards + Queue
  * ==========================================
  */
 
@@ -13,12 +13,16 @@ const AppState = {
   soundEnabled: true,
   cards: [],
   uploadedFiles: [],
-  streak: parseInt(localStorage.getItem('instamind_streak') || '0'),
-  lastGenerated: localStorage.getItem('instamind_last_generated') || null,
-  points: parseInt(localStorage.getItem('instamind_points') || '0'),
+  profilePic: null,
+  streak: parseInt(localStorage.getItem('scroll_dna_streak') || '0'),
+  lastGenerated: localStorage.getItem('scroll_dna_last_generated') || null,
+  points: parseInt(localStorage.getItem('scroll_dna_points') || '0'),
   generationInProgress: false,
   serverUrl: window.location.origin,
-  adminToken: localStorage.getItem('instamind_admin_token') || null
+  adminToken: localStorage.getItem('scroll_dna_admin_token') || null,
+  notifications: [],
+  unreadCount: 0,
+  eventSource: null
 };
 
 // ==========================================
@@ -27,9 +31,7 @@ const AppState = {
 const AudioEngine = {
   ctx: null,
   init() {
-    if (!this.ctx) {
-      this.ctx = new (window.AudioContext || window.webkitAudioContext)();
-    }
+    if (!this.ctx) this.ctx = new (window.AudioContext || window.webkitAudioContext)();
   },
   playTone(freq, type = 'sine', duration = 0.15, vol = 0.08) {
     if (!AppState.soundEnabled || !this.ctx) return;
@@ -57,7 +59,11 @@ const AudioEngine = {
     });
   },
   error() { this.playTone(200, 'sawtooth', 0.3, 0.06); },
-  flip() { this.playTone(440, 'triangle', 0.25, 0.05); }
+  flip() { this.playTone(440, 'triangle', 0.25, 0.05); },
+  notify() {
+    this.playTone(880, 'sine', 0.1, 0.1);
+    setTimeout(() => this.playTone(1100, 'sine', 0.2, 0.1), 100);
+  }
 };
 
 // ==========================================
@@ -72,6 +78,7 @@ const DOM = {
   progressFill: () => document.getElementById('progressFill'),
   progressText: () => document.getElementById('progressText'),
   aiStatus: () => document.getElementById('aiStatus'),
+  queueStatus: () => document.getElementById('queueStatus'),
   pages: {
     landing: () => document.getElementById('landingPage'),
     upload: () => document.getElementById('uploadPage'),
@@ -80,6 +87,7 @@ const DOM = {
     admin: () => document.getElementById('adminPage')
   },
   ctaButton: () => document.getElementById('ctaButton'),
+  instantCardBtn: () => document.getElementById('instantCardBtn'),
   viewCardsBtn: () => document.getElementById('viewCardsBtn'),
   dropZone: () => document.getElementById('dropZone'),
   fileInput: () => document.getElementById('fileInput'),
@@ -88,6 +96,12 @@ const DOM = {
   uploadedFiles: () => document.getElementById('uploadedFiles'),
   generateBtn: () => document.getElementById('generateBtn'),
   clearBtn: () => document.getElementById('clearBtn'),
+  instantUploadBtn: () => document.getElementById('instantUploadBtn'),
+  usernameInput: () => document.getElementById('usernameInput'),
+  profileLinkInput: () => document.getElementById('profileLinkInput'),
+  profilePicInput: () => document.getElementById('profilePicInput'),
+  profilePicZone: () => document.getElementById('profilePicZone'),
+  profilePicPreview: () => document.getElementById('profilePicPreview'),
   cardsGrid: () => document.getElementById('cardsGrid'),
   totalCards: () => document.getElementById('totalCards'),
   legendaryCount: () => document.getElementById('legendaryCount'),
@@ -106,9 +120,13 @@ const DOM = {
   adminPassword: () => document.getElementById('adminPassword'),
   adminLoginBtn: () => document.getElementById('adminLoginBtn'),
   adminLogoutBtn: () => document.getElementById('adminLogoutBtn'),
+  adminOnlineToggle: () => document.getElementById('adminOnlineToggle'),
   adminTabs: () => document.querySelectorAll('.admin-tab'),
   adminUploadsList: () => document.getElementById('adminUploadsList'),
   adminCardsList: () => document.getElementById('adminCardsList'),
+  pendingList: () => document.getElementById('pendingList'),
+  notificationBell: () => document.getElementById('notificationBell'),
+  bellCount: () => document.getElementById('bellCount'),
   createCardBtn: () => document.getElementById('createCardBtn')
 };
 
@@ -119,42 +137,31 @@ const Utils = {
   generateId() {
     return 'card_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
   },
-  randomBetween(min, max) {
-    return Math.random() * (max - min) + min;
-  },
-  randomInt(min, max) {
-    return Math.floor(Math.random() * (max - min + 1)) + min;
-  },
+  randomBetween(min, max) { return Math.random() * (max - min) + min; },
+  randomInt(min, max) { return Math.floor(Math.random() * (max - min + 1)) + min; },
   formatDate(date) {
-    return new Date(date).toLocaleDateString('en-US', {
-      month: 'short', day: 'numeric', year: 'numeric',
-      hour: '2-digit', minute: '2-digit'
-    });
+    return new Date(date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' });
   },
-  clamp(val, min, max) {
-    return Math.min(Math.max(val, min), max);
-  },
+  clamp(val, min, max) { return Math.min(Math.max(val, min), max); },
   saveState() {
-    localStorage.setItem('instamind_cards', JSON.stringify(AppState.cards));
-    localStorage.setItem('instamind_points', AppState.points.toString());
-    localStorage.setItem('instamind_streak', AppState.streak.toString());
-    localStorage.setItem('instamind_last_generated', AppState.lastGenerated || '');
-    localStorage.setItem('instamind_admin_token', AppState.adminToken || '');
+    localStorage.setItem('scroll_dna_cards', JSON.stringify(AppState.cards));
+    localStorage.setItem('scroll_dna_points', AppState.points.toString());
+    localStorage.setItem('scroll_dna_streak', AppState.streak.toString());
+    localStorage.setItem('scroll_dna_last_generated', AppState.lastGenerated || '');
+    localStorage.setItem('scroll_dna_admin_token', AppState.adminToken || '');
   },
   loadState() {
     try {
-      AppState.cards = JSON.parse(localStorage.getItem('instamind_cards') || '[]');
-      AppState.adminToken = localStorage.getItem('instamind_admin_token') || null;
-    } catch (e) {
-      console.warn('State load failed', e);
-    }
+      AppState.cards = JSON.parse(localStorage.getItem('scroll_dna_cards') || '[]');
+      AppState.adminToken = localStorage.getItem('scroll_dna_admin_token') || null;
+    } catch (e) { console.warn('State load failed', e); }
   },
   getRarity() {
     const roll = Math.random();
-    if (roll < 0.01) return { type: 'legendary', weight: 100, color: 'linear-gradient(135deg, #d97706, #f59e0b)' };
-    if (roll < 0.08) return { type: 'epic', weight: 25, color: 'linear-gradient(135deg, #5b21b6, #6b21a8)' };
-    if (roll < 0.30) return { type: 'rare', weight: 10, color: 'linear-gradient(135deg, #1e3a8a, #1e40af)' };
-    return { type: 'common', weight: 1, color: 'linear-gradient(135deg, #4b5563, #2d3142)' };
+    if (roll < 0.01) return { type: 'legendary', weight: 100, color: 'linear-gradient(135deg, #d97706, #f59e0b)', border: '#fbbf24' };
+    if (roll < 0.08) return { type: 'epic', weight: 25, color: 'linear-gradient(135deg, #5b21b6, #6b21a8)', border: '#8b5cf6' };
+    if (roll < 0.30) return { type: 'rare', weight: 10, color: 'linear-gradient(135deg, #1e3a8a, #1e40af)', border: '#3b82f6' };
+    return { type: 'common', weight: 1, color: 'linear-gradient(135deg, #4b5563, #2d3142)', border: '#6b7280' };
   },
   getGrade(score) {
     if (score >= 9.5) return 'SS';
@@ -186,10 +193,6 @@ const Toast = {
   init() {
     this.container = document.createElement('div');
     this.container.className = 'toast-container';
-    this.container.style.cssText = `
-      position: fixed; top: 20px; right: 20px; z-index: 9999;
-      display: flex; flex-direction: column; gap: 10px;
-    `;
     document.body.appendChild(this.container);
   },
   show(message, type = 'info', duration = 3000) {
@@ -199,21 +202,19 @@ const Toast = {
       info: 'linear-gradient(135deg, #6366f1, #4f46e5)',
       success: 'linear-gradient(135deg, #10b981, #059669)',
       error: 'linear-gradient(135deg, #ef4444, #dc2626)',
-      legendary: 'linear-gradient(135deg, #d97706, #f59e0b)'
+      legendary: 'linear-gradient(135deg, #d97706, #f59e0b)',
+      notify: 'linear-gradient(135deg, #8b5cf6, #6366f1)'
     };
     el.style.cssText = `
       background: ${colors[type] || colors.info};
       color: white; padding: 1rem 1.5rem; border-radius: 12px;
       font-weight: 600; box-shadow: 0 10px 30px rgba(0,0,0,0.3);
       transform: translateX(120%); transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-      max-width: 320px; word-break: break-word;
+      max-width: 320px; word-break: break-word; margin-bottom: 10px;
     `;
     el.textContent = message;
     this.container.appendChild(el);
-    requestAnimationFrame(() => {
-      el.style.transform = 'translateX(0)';
-      AudioEngine.click();
-    });
+    requestAnimationFrame(() => el.style.transform = 'translateX(0)');
     setTimeout(() => {
       el.style.transform = 'translateX(120%)';
       setTimeout(() => el.remove(), 400);
@@ -222,17 +223,11 @@ const Toast = {
 };
 
 // ==========================================
-// CONFETTI ENGINE
+// CONFETTI
 // ==========================================
 const Confetti = {
   fire(options = {}) {
-    const {
-      particleCount = 100,
-      spread = 70,
-      origin = { y: 0.6 },
-      colors = ['#6366f1', '#ec4899', '#06b6d4', '#fbbf24', '#8b5cf6']
-    } = options;
-
+    const { particleCount = 100, spread = 70, origin = { y: 0.6 }, colors = ['#6366f1', '#ec4899', '#06b6d4', '#fbbf24', '#8b5cf6'] } = options;
     for (let i = 0; i < particleCount; i++) {
       const p = document.createElement('div');
       const color = colors[Math.floor(Math.random() * colors.length)];
@@ -242,7 +237,6 @@ const Confetti = {
       const y = -Math.cos(angle * Math.PI / 180) * velocity * 50;
       const size = 6 + Math.random() * 8;
       const rotation = Math.random() * 360;
-
       p.style.cssText = `
         position: fixed; left: ${origin.x ? origin.x * 100 : 50}%; top: ${origin.y * 100}vh;
         width: ${size}px; height: ${size}px; background: ${color};
@@ -251,18 +245,16 @@ const Confetti = {
         transform: rotate(${rotation}deg);
       `;
       document.body.appendChild(p);
-
-      const duration = 1000 + Math.random() * 1500;
       p.animate([
         { transform: `translate(0,0) rotate(${rotation}deg)`, opacity: 1 },
         { transform: `translate(${x}px, ${y + 200}px) rotate(${rotation + 720}deg)`, opacity: 0 }
-      ], { duration, easing: 'cubic-bezier(0.25, 0.46, 0.45, 0.94)' }).onfinish = () => p.remove();
+      ], { duration: 1000 + Math.random() * 1500, easing: 'cubic-bezier(0.25, 0.46, 0.45, 0.94)' }).onfinish = () => p.remove();
     }
   }
 };
 
 // ==========================================
-// NAVIGATION (SPA)
+// NAVIGATION
 // ==========================================
 const Navigation = {
   history: [],
@@ -271,15 +263,10 @@ const Navigation = {
       Toast.show('Generation in progress... please wait!', 'info');
       return;
     }
-
     Object.values(DOM.pages).forEach(pageFn => {
       const page = pageFn();
-      if (page) {
-        page.classList.remove('active');
-        page.style.display = 'none';
-      }
+      if (page) { page.classList.remove('active'); page.style.display = 'none'; }
     });
-
     const target = DOM.pages[pageId] ? DOM.pages[pageId]() : null;
     if (target) {
       target.style.display = 'block';
@@ -308,9 +295,7 @@ const Navigation = {
 // LANDING PAGE
 // ==========================================
 const Landing = {
-  init() {
-    this.animateCounters();
-  },
+  init() { this.animateCounters(); },
   animateCounters() {
     const stats = [
       { el: document.querySelector('.stats-section .stat-item:nth-child(1) h3'), target: 2400000 },
@@ -318,7 +303,6 @@ const Landing = {
       { el: document.querySelector('.stats-section .stat-item:nth-child(3) h3'), target: 156 },
       { el: document.querySelector('.stats-section .stat-item:nth-child(4) h3'), target: 2 }
     ];
-
     stats.forEach(({ el, target }) => {
       if (!el) return;
       let current = 0;
@@ -330,13 +314,42 @@ const Landing = {
       };
       const timer = setInterval(() => {
         current += increment;
-        if (current >= target) {
-          current = target;
-          clearInterval(timer);
-        }
+        if (current >= target) { current = target; clearInterval(timer); }
         el.textContent = format(Math.floor(current));
       }, 30);
     });
+  }
+};
+
+// ==========================================
+// PROFILE PIC UPLOAD
+// ==========================================
+const ProfilePic = {
+  init() {
+    const zone = DOM.profilePicZone();
+    const input = DOM.profilePicInput();
+    if (!zone || !input) return;
+
+    zone.addEventListener('click', () => input.click());
+    input.addEventListener('change', (e) => this.handleFile(e.target.files[0]));
+  },
+
+  handleFile(file) {
+    if (!file || !file.type.startsWith('image/')) {
+      Toast.show('Please upload an image file', 'error');
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      AppState.profilePic = { data: e.target.result, rawFile: file, name: file.name };
+      const preview = DOM.profilePicPreview();
+      if (preview) {
+        preview.innerHTML = `<img src="${e.target.result}" style="width:100%;height:100%;object-fit:cover;border-radius:50%">`;
+      }
+      Toast.show('Profile picture added!', 'success');
+      AudioEngine.success();
+    };
+    reader.readAsDataURL(file);
   }
 };
 
@@ -355,20 +368,14 @@ const Upload = {
     ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(evt => {
       dz.addEventListener(evt, (e) => { e.preventDefault(); e.stopPropagation(); });
     });
-
-    ['dragenter', 'dragover'].forEach(evt => {
-      dz.addEventListener(evt, () => dz.classList.add('drag-over'));
-    });
-    ['dragleave', 'drop'].forEach(evt => {
-      dz.addEventListener(evt, () => dz.classList.remove('drag-over'));
-    });
+    ['dragenter', 'dragover'].forEach(evt => dz.addEventListener(evt, () => dz.classList.add('drag-over')));
+    ['dragleave', 'drop'].forEach(evt => dz.addEventListener(evt, () => dz.classList.remove('drag-over')));
     dz.addEventListener('drop', (e) => this.handleFiles(e.dataTransfer.files));
 
-    const genBtn = DOM.generateBtn();
-    if (genBtn) genBtn.addEventListener('click', () => this.startGeneration());
-
-    const clearBtn = DOM.clearBtn();
-    if (clearBtn) clearBtn.addEventListener('click', () => this.clearFiles());
+    DOM.generateBtn()?.addEventListener('click', () => this.startGeneration());
+    DOM.clearBtn()?.addEventListener('click', () => this.clearFiles());
+    DOM.instantUploadBtn()?.addEventListener('click', () => this.instantCard());
+    DOM.instantCardBtn()?.addEventListener('click', () => this.instantCard());
 
     this.updateGenerateButton();
   },
@@ -381,21 +388,14 @@ const Upload = {
     });
 
     if (AppState.uploadedFiles.length + files.length > 11) {
-      Toast.show('Max 11 files allowed (1 homepage + 10 reels)', 'error');
+      Toast.show('Max 11 files allowed', 'error');
       return;
     }
 
     files.forEach(file => {
       const reader = new FileReader();
       reader.onload = (e) => {
-        AppState.uploadedFiles.push({
-          id: Utils.generateId(),
-          name: file.name,
-          size: file.size,
-          type: file.type,
-          data: e.target.result,
-          rawFile: file
-        });
+        AppState.uploadedFiles.push({ id: Utils.generateId(), name: file.name, size: file.size, type: file.type, data: e.target.result, rawFile: file });
         this.renderFileList();
         this.updateGenerateButton();
       };
@@ -434,10 +434,7 @@ const Upload = {
       const removeBtn = document.createElement('button');
       removeBtn.className = 'file-item-remove';
       removeBtn.innerHTML = '×';
-      removeBtn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        this.removeFile(idx);
-      });
+      removeBtn.addEventListener('click', (e) => { e.stopPropagation(); this.removeFile(idx); });
       item.appendChild(removeBtn);
       container.appendChild(item);
     });
@@ -452,11 +449,16 @@ const Upload = {
 
   clearFiles() {
     AppState.uploadedFiles = [];
+    AppState.profilePic = null;
     const fi = DOM.fileInput();
+    const pi = DOM.profilePicInput();
     if (fi) fi.value = '';
+    if (pi) pi.value = '';
+    const preview = DOM.profilePicPreview();
+    if (preview) preview.innerHTML = `<span>📷</span><p>Click to upload your profile pic</p>`;
     this.renderFileList();
     this.updateGenerateButton();
-    Toast.show('All files cleared', 'info');
+    Toast.show('All cleared', 'info');
   },
 
   updateGenerateButton() {
@@ -465,37 +467,61 @@ const Upload = {
     btn.disabled = AppState.uploadedFiles.length === 0;
   },
 
+  async instantCard() {
+    try {
+      AudioEngine.init();
+      const response = await fetch(`${AppState.serverUrl}/api/instant-card`, { method: 'POST' });
+      const result = await response.json();
+      if (result.success && result.card) {
+        AppState.cards.unshift(result.card);
+        AppState.points += Math.floor(result.card.score * (result.card.rarityData?.weight || 1));
+        Utils.saveState();
+        this.updateNavStats();
+        CardDetail.currentCard = result.card;
+        if (result.card.rarity === 'legendary') {
+          AudioEngine.legendary();
+          Confetti.fire({ particleCount: 150 });
+          Toast.show(`🎉 LEGENDARY! ${result.card.name} - ${result.card.grade}!`, 'legendary', 5000);
+        } else {
+          AudioEngine.success();
+          Toast.show(`⚡ Instant ${result.card.name}!`, 'success');
+        }
+        Navigation.navigateTo('detail');
+      }
+    } catch (e) {
+      Toast.show('Instant card failed', 'error');
+    }
+  },
+
   async startGeneration() {
-    if (AppState.uploadedFiles.length === 0) return;
+    if (AppState.uploadedFiles.length === 0 && !DOM.profileLinkInput()?.value) return;
     if (AppState.generationInProgress) return;
 
     const today = new Date().toDateString();
     const last = AppState.lastGenerated ? new Date(AppState.lastGenerated).toDateString() : null;
     if (last !== today) {
       const yesterday = new Date(Date.now() - 86400000).toDateString();
-      if (last === yesterday) {
-        AppState.streak++;
-      } else {
-        AppState.streak = 1;
-      }
+      AppState.streak = (last === yesterday) ? AppState.streak + 1 : 1;
       AppState.lastGenerated = new Date().toISOString();
     }
 
     AppState.generationInProgress = true;
     const overlay = DOM.processingOverlay();
+    const queueStatus = DOM.queueStatus();
     if (overlay) overlay.classList.remove('hidden');
+    if (queueStatus) queueStatus.classList.add('hidden');
 
     AudioEngine.init();
     AudioEngine.flip();
 
     const steps = [
-      { pct: 10, text: 'Uploading screenshots...', status: '📤 Uploading to AI server' },
-      { pct: 25, text: 'Analyzing visual patterns...', status: '🔍 AI scanning feed aesthetics' },
-      { pct: 40, text: 'Detecting personality traits...', status: '🧠 Groq LLM processing content' },
+      { pct: 10, text: 'Uploading screenshots...', status: '📤 Uploading to DNA Lab' },
+      { pct: 25, text: 'Analyzing visual patterns...', status: '🔍 AI scanning your feed' },
+      { pct: 40, text: 'Detecting personality traits...', status: '🧬 Sequencing social genome' },
       { pct: 55, text: 'Calculating engagement scores...', status: '📊 Computing virality metrics' },
       { pct: 70, text: 'Determining card rarity...', status: '✨ Rolling for rarity...' },
-      { pct: 85, text: 'Generating card artwork...', status: '🎨 Rendering trading card' },
-      { pct: 100, text: 'Card ready!', status: '🎴 Your card is ready!' }
+      { pct: 85, text: 'Generating trading card...', status: '🎨 Rendering premium card' },
+      { pct: 100, text: 'Card ready!', status: '🧬 Your DNA card is ready!' }
     ];
 
     let stepIndex = 0;
@@ -510,14 +536,19 @@ const Upload = {
 
     let card = null;
     let usedFallback = false;
+    let wasQueued = false;
 
     try {
       const formData = new FormData();
       AppState.uploadedFiles.forEach(file => {
-        if (file.rawFile) {
-          formData.append('files', file.rawFile, file.name);
-        }
+        if (file.rawFile) formData.append('files', file.rawFile, file.name);
       });
+      if (AppState.profilePic?.rawFile) formData.append('profilePic', AppState.profilePic.rawFile, AppState.profilePic.name);
+
+      const username = DOM.usernameInput()?.value?.trim() || 'Anonymous';
+      const profileLink = DOM.profileLinkInput()?.value?.trim() || '';
+      formData.append('username', username);
+      formData.append('profileLink', profileLink);
 
       const response = await fetch(`${AppState.serverUrl}/api/generate-card`, {
         method: 'POST',
@@ -531,20 +562,33 @@ const Upload = {
 
       const result = await response.json();
 
+      if (result.queued) {
+        wasQueued = true;
+        clearInterval(progressInterval);
+        this.updateProgress(50, 'In review queue...', '👨‍🔬 Admin is crafting your card');
+        if (queueStatus) queueStatus.classList.remove('hidden');
+        await this.delay(3000);
+        if (overlay) overlay.classList.add('hidden');
+        AppState.generationInProgress = false;
+        Toast.show('⏳ Your card is in the admin queue! Check back soon.', 'info', 5000);
+        this.clearFiles();
+        return;
+      }
+
       if (result.success && result.card) {
         card = result.card;
         if (!card.id) card.id = Utils.generateId();
         if (!card.createdAt) card.createdAt = new Date().toISOString();
         if (!card.rarityData) {
           card.rarityData = {
-            common: { weight: 1, color: 'linear-gradient(135deg, #4b5563, #2d3142)' },
-            rare: { weight: 10, color: 'linear-gradient(135deg, #1e3a8a, #1e40af)' },
-            epic: { weight: 25, color: 'linear-gradient(135deg, #5b21b6, #6b21a8)' },
-            legendary: { weight: 100, color: 'linear-gradient(135deg, #d97706, #f59e0b)' }
-          }[card.rarity] || { weight: 1, color: 'linear-gradient(135deg, #4b5563, #2d3142)' };
+            common: { weight: 1, color: 'linear-gradient(135deg, #4b5563, #2d3142)', border: '#6b7280' },
+            rare: { weight: 10, color: 'linear-gradient(135deg, #1e3a8a, #1e40af)', border: '#3b82f6' },
+            epic: { weight: 25, color: 'linear-gradient(135deg, #5b21b6, #6b21a8)', border: '#8b5cf6' },
+            legendary: { weight: 100, color: 'linear-gradient(135deg, #d97706, #f59e0b)', border: '#fbbf24' }
+          }[card.rarity] || { weight: 1, color: 'linear-gradient(135deg, #4b5563, #2d3142)', border: '#6b7280' };
         }
       } else {
-        throw new Error('Invalid response from server');
+        throw new Error('Invalid response');
       }
 
     } catch (error) {
@@ -562,18 +606,16 @@ const Upload = {
       usedFallback = true;
     }
 
-    this.updateProgress(100, 'Card ready!', '🎴 Your card is ready!');
+    this.updateProgress(100, 'Card ready!', '🧬 Your DNA card is ready!');
     await this.delay(500);
 
     AppState.cards.unshift(card);
     AppState.points += Math.floor(card.score * (card.rarityData?.weight || 1));
-
     Utils.saveState();
     this.updateNavStats();
 
     if (overlay) overlay.classList.add('hidden');
     AppState.generationInProgress = false;
-
     this.clearFiles();
 
     if (card.rarity === 'legendary') {
@@ -586,7 +628,7 @@ const Upload = {
       Toast.show(`✨ EPIC! ${card.name} - ${card.grade}!`, 'success', 4000);
     } else {
       AudioEngine.success();
-      Toast.show(`${usedFallback ? '🎲' : '🎴'} ${card.name} generated!`, 'success');
+      Toast.show(`${usedFallback ? '🎲' : '🧬'} ${card.name} generated!`, 'success');
     }
 
     CardDetail.currentCard = card;
@@ -602,9 +644,7 @@ const Upload = {
     if (ai) ai.textContent = status;
   },
 
-  delay(ms) {
-    return new Promise(resolve => setTimeout(resolve, ms));
-  },
+  delay(ms) { return new Promise(resolve => setTimeout(resolve, ms)); },
 
   generateMockCard() {
     const rarityData = Utils.getRarity();
@@ -613,41 +653,29 @@ const Upload = {
     const score = Utils.clamp(baseScore + rarityBonus + (AppState.streak * 0.05), 5.0, 10.0);
 
     const stats = {
-      creativity: Utils.randomInt(60, 99),
-      engagement: Utils.randomInt(50, 99),
-      consistency: Utils.randomInt(40, 99),
-      virality: Utils.randomInt(45, 99),
-      aesthetic: Utils.randomInt(55, 99),
-      authenticity: Utils.randomInt(50, 99)
+      creativity: Utils.randomInt(60, 99), engagement: Utils.randomInt(50, 99),
+      consistency: Utils.randomInt(40, 99), virality: Utils.randomInt(45, 99),
+      aesthetic: Utils.randomInt(55, 99), authenticity: Utils.randomInt(50, 99)
     };
 
     const name = Utils.getPersonalityName();
     const grade = Utils.getGrade(score);
 
     return {
-      id: Utils.generateId(),
-      name,
-      rarity: rarityData.type,
-      rarityData,
-      score: parseFloat(score.toFixed(1)),
-      grade,
-      stats,
+      id: Utils.generateId(), name, rarity: rarityData.type, rarityData,
+      score: parseFloat(score.toFixed(1)), grade, stats,
       description: this.generateDescription(name, rarityData.type, stats),
-      createdAt: new Date().toISOString()
+      createdAt: new Date().toISOString(),
+      username: DOM.usernameInput()?.value || 'Anonymous',
+      profileLink: DOM.profileLinkInput()?.value || '',
+      profilePicUrl: AppState.profilePic ? AppState.profilePic.data : null
     };
   },
 
   generateDescription(name, rarity, stats) {
     const topStat = Object.entries(stats).sort((a, b) => b[1] - a[1])[0];
-    const statNames = {
-      creativity: 'creative vision',
-      engagement: 'audience magnetism',
-      consistency: 'posting discipline',
-      virality: 'trend-setting power',
-      aesthetic: 'visual curation',
-      authenticity: 'genuine connection'
-    };
-    return `A ${rarity.toUpperCase()} card representing a user with exceptional ${statNames[topStat[0]]}. Their Instagram presence radiates ${name.toLowerCase()} energy, scoring highest in ${topStat[0]} at ${topStat[1]}%.`;
+    const statNames = { creativity: 'creative vision', engagement: 'audience magnetism', consistency: 'posting discipline', virality: 'trend-setting power', aesthetic: 'visual curation', authenticity: 'genuine connection' };
+    return `A ${rarity.toUpperCase()} DNA card representing a user with exceptional ${statNames[topStat[0]]}. Their social media presence radiates ${name.toLowerCase()} energy, scoring highest in ${topStat[0]} at ${topStat[1]}%.`;
   },
 
   updateNavStats() {
@@ -690,17 +718,15 @@ const Collection = {
     if (points) points.textContent = AppState.points.toLocaleString();
 
     let cards = AppState.cards;
-    if (this.currentFilter !== 'all') {
-      cards = cards.filter(c => c.rarity === this.currentFilter);
-    }
+    if (this.currentFilter !== 'all') cards = cards.filter(c => c.rarity === this.currentFilter);
 
     if (cards.length === 0) {
       grid.innerHTML = `
         <div class="empty-state">
           <p style="font-size:3rem;margin-bottom:1rem">📭</p>
-          <p>No ${this.currentFilter !== 'all' ? this.currentFilter : ''} cards yet.</p>
+          <p>No ${this.currentFilter !== 'all' ? this.currentFilter : ''} DNA cards yet.</p>
           <button class="cta-button primary" style="margin-top:1.5rem" onclick="Navigation.navigateTo('upload')">
-            🎴 Generate Your First Card
+            🧬 Generate Your First Card
           </button>
         </div>
       `;
@@ -712,19 +738,26 @@ const Collection = {
       const el = document.createElement('div');
       el.className = 'card-item';
       el.style.animationDelay = `${idx * 0.05}s`;
+      const bg = card.rarityData?.color || card.color || 'linear-gradient(135deg, #4b5563, #2d3142)';
+      const border = card.rarityData?.border || '#6b7280';
+
+      // Profile pic on card if available
+      const profileHtml = card.profilePicUrl
+        ? `<div class="card-profile-thumb"><img src="${card.profilePicUrl}" alt=""></div>`
+        : `<div class="card-profile-thumb placeholder">👤</div>`;
+
       el.innerHTML = `
-        <div class="card-face card-${card.rarity}" style="background: ${card.rarityData?.color || card.color || 'linear-gradient(135deg, #4b5563, #2d3142)'}">
+        <div class="card-face card-${card.rarity}" style="background: ${bg}; border-color: ${border}">
           <div class="card-face-content">
+            ${profileHtml}
             <div class="card-rarity-badge">${card.rarity.toUpperCase()}</div>
             <div class="card-title">${card.name}</div>
+            <div class="card-user">@${card.username || 'user'}</div>
             <div class="card-score">⭐ ${card.score} | ${card.grade}</div>
           </div>
         </div>
       `;
-      el.addEventListener('click', () => {
-        CardDetail.currentCard = card;
-        Navigation.navigateTo('detail');
-      });
+      el.addEventListener('click', () => { CardDetail.currentCard = card; Navigation.navigateTo('detail'); });
       el.addEventListener('mouseenter', () => AudioEngine.hover());
       grid.appendChild(el);
     });
@@ -738,13 +771,9 @@ const CardDetail = {
   currentCard: null,
 
   init() {
-    const shareBtn = DOM.shareCardBtn();
-    const downloadBtn = DOM.downloadCardBtn();
-    const rerollBtn = DOM.rerollCardBtn();
-
-    if (shareBtn) shareBtn.addEventListener('click', () => this.share());
-    if (downloadBtn) downloadBtn.addEventListener('click', () => this.download());
-    if (rerollBtn) rerollBtn.addEventListener('click', () => this.reroll());
+    DOM.shareCardBtn()?.addEventListener('click', () => this.share());
+    DOM.downloadCardBtn()?.addEventListener('click', () => this.download());
+    DOM.rerollCardBtn()?.addEventListener('click', () => this.reroll());
   },
 
   render() {
@@ -756,20 +785,38 @@ const CardDetail = {
     const stats = DOM.statsDetail();
 
     const bg = card.rarityData?.color || card.color || 'linear-gradient(135deg, #4b5563, #2d3142)';
+    const border = card.rarityData?.border || '#6b7280';
+    const profileImg = card.profilePicUrl
+      ? `<div class="card-profile-large"><img src="${card.profilePicUrl}" alt=""><div class="profile-ring" style="border-color:${border}"></div></div>`
+      : `<div class="card-profile-large placeholder">👤</div>`;
 
+    // Sports trading card style
     if (display) {
       display.innerHTML = `
-        <div class="large-card" style="background: ${bg}; animation: cardEnter 0.6s ease-out">
-          <div style="position:relative;z-index:2;height:100%;display:flex;flex-direction:column;justify-content:space-between">
-            <div>
-              <div style="font-size:0.85rem;letter-spacing:2px;opacity:0.9">${card.rarity.toUpperCase()}</div>
-              <div style="font-size:2rem;margin:1rem 0;font-weight:800">${card.name}</div>
-            </div>
-            <div>
-              <div style="font-size:1.5rem;font-weight:700">⭐ ${card.score}</div>
-              <div style="font-size:1.2rem;opacity:0.9">Grade: ${card.grade}</div>
-              <div style="font-size:0.85rem;margin-top:0.5rem;opacity:0.7">${Utils.formatDate(card.createdAt)}</div>
-            </div>
+        <div class="trading-card" style="background: ${bg}; border-color: ${border}">
+          <div class="trading-card-header">
+            <span class="trading-rarity">${card.rarity.toUpperCase()}</span>
+            <span class="trading-grade">${card.grade}</span>
+          </div>
+          <div class="trading-profile">
+            ${profileImg}
+            <div class="trading-name">${card.name}</div>
+            <div class="trading-username">@${card.username || 'anonymous'}</div>
+          </div>
+          <div class="trading-score-ring">
+            <svg viewBox="0 0 100 100">
+              <circle cx="50" cy="50" r="45" fill="none" stroke="rgba(255,255,255,0.2)" stroke-width="8"/>
+              <circle cx="50" cy="50" r="45" fill="none" stroke="white" stroke-width="8" 
+                stroke-dasharray="${2 * Math.PI * 45}" 
+                stroke-dashoffset="${2 * Math.PI * 45 * (1 - card.score / 10)}" 
+                stroke-linecap="round" style="transition: stroke-dashoffset 1.5s ease; transform: rotate(-90deg); transform-origin: center;"/>
+            </svg>
+            <div class="trading-score-value">${card.score}</div>
+          </div>
+          <div class="trading-stats-mini">
+            <div>CR: ${card.stats?.creativity || 0}</div>
+            <div>EN: ${card.stats?.engagement || 0}</div>
+            <div>VI: ${card.stats?.virality || 0}</div>
           </div>
         </div>
       `;
@@ -779,6 +826,7 @@ const CardDetail = {
       info.innerHTML = `
         <h2>${card.name}</h2>
         <p>${card.description}</p>
+        ${card.profileLink ? `<p style="margin-top:0.5rem"><a href="${card.profileLink}" target="_blank" style="color:var(--primary);text-decoration:none">🔗 ${card.profileLink}</a></p>` : ''}
         <div style="margin-top:1.5rem;display:flex;gap:1rem;flex-wrap:wrap">
           <span style="padding:0.5rem 1rem;background:rgba(255,255,255,0.1);border-radius:20px;font-size:0.9rem">🔥 Streak: ${AppState.streak}</span>
           <span style="padding:0.5rem 1rem;background:rgba(255,255,255,0.1);border-radius:20px;font-size:0.9rem">💎 ${card.rarityData?.weight || 1}x Multiplier</span>
@@ -791,43 +839,28 @@ const CardDetail = {
         <div class="stat-detail-item">
           <span>${key.charAt(0).toUpperCase() + key.slice(1)}</span>
           <span class="stat-detail-value">${val}%</span>
-          <div style="width:100%;height:4px;background:rgba(255,255,255,0.1);border-radius:2px;margin-top:0.5rem">
-            <div style="width:${val}%;height:100%;background:var(--primary);border-radius:2px;transition:width 1s ease"></div>
+          <div style="width:100%;height:6px;background:rgba(255,255,255,0.1);border-radius:3px;margin-top:0.5rem;overflow:hidden">
+            <div style="width:${val}%;height:100%;background:var(--primary);border-radius:3px;transition:width 1s ease"></div>
           </div>
         </div>
       `).join('');
-    }
-
-    if (!document.getElementById('cardEnterStyle')) {
-      const style = document.createElement('style');
-      style.id = 'cardEnterStyle';
-      style.textContent = `
-        @keyframes cardEnter {
-          from { transform: rotateY(-90deg) scale(0.8); opacity: 0; }
-          to { transform: rotateY(0) scale(1); opacity: 1; }
-        }
-      `;
-      document.head.appendChild(style);
     }
   },
 
   share() {
     const card = this.currentCard;
     if (!card) return;
-    const text = `I just pulled a ${card.rarity.toUpperCase()} "${card.name}" card on InstaMind! Score: ${card.score} | Grade: ${card.grade} 🎴✨`;
-
+    const text = `I just pulled a ${card.rarity.toUpperCase()} "${card.name}" DNA card on Scroll DNA! Score: ${card.score} | Grade: ${card.grade} 🧬✨`;
     if (navigator.share) {
-      navigator.share({ title: 'InstaMind Card', text }).catch(() => {});
+      navigator.share({ title: 'Scroll DNA Card', text }).catch(() => {});
     } else {
-      navigator.clipboard.writeText(text).then(() => {
-        Toast.show('Card details copied to clipboard!', 'success');
-      });
+      navigator.clipboard.writeText(text).then(() => Toast.show('Copied to clipboard!', 'success'));
     }
     AudioEngine.success();
   },
 
   download() {
-    Toast.show('Download started... (Canvas export coming in v2)', 'info');
+    Toast.show('Download feature coming in v2!', 'info');
     AudioEngine.click();
   },
 
@@ -857,26 +890,20 @@ const CardDetail = {
 // ADMIN DASHBOARD
 // ==========================================
 const Admin = {
-  currentTab: 'uploads',
+  currentTab: 'pending',
+  eventSource: null,
 
   init() {
     const loginBtn = DOM.adminLoginBtn();
     const logoutBtn = DOM.adminLogoutBtn();
     const password = DOM.adminPassword();
+    const onlineToggle = DOM.adminOnlineToggle();
 
-    if (loginBtn) {
-      loginBtn.addEventListener('click', () => this.login());
-    }
-    if (logoutBtn) {
-      logoutBtn.addEventListener('click', () => this.logout());
-    }
-    if (password) {
-      password.addEventListener('keypress', (e) => {
-        if (e.key === 'Enter') this.login();
-      });
-    }
+    if (loginBtn) loginBtn.addEventListener('click', () => this.login());
+    if (logoutBtn) logoutBtn.addEventListener('click', () => this.logout());
+    if (password) password.addEventListener('keypress', (e) => { if (e.key === 'Enter') this.login(); });
+    if (onlineToggle) onlineToggle.addEventListener('click', () => this.toggleOnline());
 
-    // Tabs
     DOM.adminTabs().forEach(tab => {
       tab.addEventListener('click', () => {
         DOM.adminTabs().forEach(t => t.classList.remove('active'));
@@ -887,15 +914,12 @@ const Admin = {
       });
     });
 
-    // Create card button
-    const createBtn = DOM.createCardBtn();
-    if (createBtn) {
-      createBtn.addEventListener('click', () => this.createManualCard());
-    }
+    DOM.createCardBtn()?.addEventListener('click', () => this.createManualCard());
+    DOM.notificationBell()?.addEventListener('click', () => this.showNotifications());
 
-    // Check if already logged in
     if (AppState.adminToken) {
       this.showContent();
+      this.connectSSE();
       this.loadData();
     } else {
       this.showLogin();
@@ -905,20 +929,18 @@ const Admin = {
   async login() {
     const pw = DOM.adminPassword();
     if (!pw) return;
-
     try {
       const response = await fetch(`${AppState.serverUrl}/api/admin/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ password: pw.value })
       });
-
       const result = await response.json();
-
       if (result.success) {
         AppState.adminToken = result.token;
         Utils.saveState();
         this.showContent();
+        this.connectSSE();
         this.loadData();
         Toast.show('Admin access granted', 'success');
         AudioEngine.success();
@@ -935,6 +957,7 @@ const Admin = {
 
   logout() {
     AppState.adminToken = null;
+    if (this.eventSource) { this.eventSource.close(); this.eventSource = null; }
     Utils.saveState();
     this.showLogin();
     Toast.show('Logged out', 'info');
@@ -954,9 +977,84 @@ const Admin = {
     if (content) content.classList.remove('hidden');
   },
 
+  connectSSE() {
+    if (this.eventSource) this.eventSource.close();
+    this.eventSource = new EventSource(`${AppState.serverUrl}/api/admin/stream`, {
+      headers: { 'x-admin-auth': AppState.adminToken }
+    });
+
+    this.eventSource.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        if (data.type === 'connected') return;
+
+        AppState.notifications.unshift(data);
+        AppState.unreadCount++;
+        this.updateBell();
+
+        // Browser notification for mobile/desktop
+        if (Notification.permission === 'granted') {
+          new Notification('Scroll DNA Admin', { body: data.message, icon: '🧬' });
+        }
+
+        AudioEngine.notify();
+        Toast.show(data.message, 'notify', 4000);
+
+        if (data.type === 'new_upload' || data.type === 'pending_added') {
+          this.loadPending();
+          this.loadStats();
+        }
+        if (data.type === 'card_generated' || data.type === 'manual_approved') {
+          this.loadCards();
+          this.loadStats();
+        }
+      } catch (e) {}
+    };
+
+    this.eventSource.onerror = () => {
+      console.log('SSE error, reconnecting...');
+      setTimeout(() => this.connectSSE(), 5000);
+    };
+  },
+
+  updateBell() {
+    const bell = DOM.bellCount();
+    if (bell) {
+      bell.textContent = AppState.unreadCount;
+      bell.style.display = AppState.unreadCount > 0 ? 'flex' : 'none';
+    }
+  },
+
+  showNotifications() {
+    AppState.unreadCount = 0;
+    this.updateBell();
+    Toast.show('Notifications cleared', 'info');
+  },
+
+  async toggleOnline() {
+    const btn = DOM.adminOnlineToggle();
+    const isOnline = btn?.classList.contains('online');
+    try {
+      await fetch(`${AppState.serverUrl}/api/admin/status`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-admin-auth': AppState.adminToken },
+        body: JSON.stringify({ online: !isOnline })
+      });
+      if (btn) {
+        btn.classList.toggle('online');
+        btn.classList.toggle('offline');
+        btn.textContent = isOnline ? '⚪ Offline Mode' : '🟢 Online Mode';
+      }
+      Toast.show(isOnline ? 'Admin offline - AI will auto-generate' : 'Admin online - manual review enabled', 'info');
+    } catch (e) {}
+  },
+
   async loadData() {
     await this.loadStats();
     this.renderTab();
+    if (Notification.permission !== 'granted' && Notification.permission !== 'denied') {
+      Notification.requestPermission();
+    }
   },
 
   async loadStats() {
@@ -966,23 +1064,16 @@ const Admin = {
       });
       const stats = await response.json();
 
-      const elTotalUploads = document.getElementById('statTotalUploads');
-      const elTotalCards = document.getElementById('statTotalCards');
-      const elAICards = document.getElementById('statAICards');
-      const elManualCards = document.getElementById('statManualCards');
-
-      if (elTotalUploads) elTotalUploads.textContent = stats.totalUploads || 0;
-      if (elTotalCards) elTotalCards.textContent = stats.totalCards || 0;
-      if (elAICards) elAICards.textContent = stats.aiCards || 0;
-      if (elManualCards) elManualCards.textContent = stats.manualCards || 0;
-    } catch (e) {
-      console.error('Stats load error:', e);
-    }
+      const setVal = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
+      setVal('statTotalUploads', stats.totalUploads || 0);
+      setVal('statTotalCards', stats.totalCards || 0);
+      setVal('statPending', stats.pendingCount || 0);
+      setVal('statAICards', stats.aiCards || 0);
+    } catch (e) {}
   },
 
   renderTab() {
-    // Hide all sections
-    ['uploads', 'cards', 'create'].forEach(tab => {
+    ['pending', 'uploads', 'cards', 'create'].forEach(tab => {
       const el = document.getElementById(tab + 'Tab');
       if (el) {
         el.classList.toggle('active', tab === this.currentTab);
@@ -990,14 +1081,115 @@ const Admin = {
       }
     });
 
+    if (this.currentTab === 'pending') this.loadPending();
     if (this.currentTab === 'uploads') this.loadUploads();
     if (this.currentTab === 'cards') this.loadCards();
+  },
+
+  async loadPending() {
+    const container = DOM.pendingList();
+    if (!container) return;
+    container.innerHTML = '<p style="color:var(--text-tertiary)">Loading queue...</p>';
+
+    try {
+      const response = await fetch(`${AppState.serverUrl}/api/admin/pending`, {
+        headers: { 'x-admin-auth': AppState.adminToken }
+      });
+      const data = await response.json();
+
+      if (!data.pending || data.pending.length === 0) {
+        container.innerHTML = '<p style="color:var(--text-tertiary)">No pending uploads - you\'re all caught up!</p>';
+        return;
+      }
+
+      container.innerHTML = '';
+      data.pending.forEach(upload => {
+        const el = document.createElement('div');
+        el.className = 'admin-pending-item';
+        const imagesHtml = upload.files.map(f =>
+          `<img src="${AppState.serverUrl}/uploads/${f.filename}" class="admin-pending-img" alt="">`
+        ).join('');
+
+        const profileHtml = upload.profilePic
+          ? `<img src="${AppState.serverUrl}${upload.profilePic.url}" class="admin-pending-profile" alt="">`
+          : '';
+
+        el.innerHTML = `
+          <div class="admin-pending-images">${profileHtml}${imagesHtml}</div>
+          <div class="admin-pending-info">
+            <h4>${upload.username || 'Anonymous'} <span style="font-size:0.8rem;color:var(--text-tertiary)">#${upload.id}</span></h4>
+            <div class="admin-pending-meta">
+              <div>📅 ${Utils.formatDate(upload.timestamp)}</div>
+              <div>📁 ${upload.files.length} files</div>
+              ${upload.profileLink ? `<div>🔗 <a href="${upload.profileLink}" target="_blank">${upload.profileLink}</a></div>` : ''}
+            </div>
+          </div>
+          <div class="admin-pending-actions">
+            <button class="admin-btn admin-btn-approve" onclick="Admin.approvePending(${upload.id})">✨ Create Card</button>
+            <button class="admin-btn admin-btn-reject" onclick="Admin.rejectPending(${upload.id})">❌ Reject</button>
+          </div>
+        `;
+        container.appendChild(el);
+      });
+    } catch (e) {
+      container.innerHTML = '<p style="color:#ef4444">Error loading queue</p>';
+    }
+  },
+
+  async approvePending(uploadId) {
+    const name = prompt('Card name:') || 'Custom Card';
+    const rarity = prompt('Rarity (common/rare/epic/legendary):') || 'rare';
+    const score = parseFloat(prompt('Score (5-10):') || '7.5');
+    const grade = prompt('Grade (D/C/B/A/A+/S/S+/SS):') || 'A';
+    const description = prompt('Description:') || 'A premium hand-crafted DNA card.';
+
+    const stats = {
+      creativity: parseInt(prompt('Creativity (40-99):') || '70'),
+      engagement: parseInt(prompt('Engagement (40-99):') || '70'),
+      consistency: parseInt(prompt('Consistency (40-99):') || '70'),
+      virality: parseInt(prompt('Virality (40-99):') || '70'),
+      aesthetic: parseInt(prompt('Aesthetic (40-99):') || '70'),
+      authenticity: parseInt(prompt('Authenticity (40-99):') || '70')
+    };
+
+    try {
+      const response = await fetch(`${AppState.serverUrl}/api/admin/pending/${uploadId}/approve`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-admin-auth': AppState.adminToken
+        },
+        body: JSON.stringify({ cardData: { name, rarity, score, grade, stats, description } })
+      });
+      const result = await response.json();
+      if (result.success) {
+        Toast.show('Card approved and created!', 'success');
+        this.loadPending();
+        this.loadStats();
+      }
+    } catch (e) {
+      Toast.show('Approval failed', 'error');
+    }
+  },
+
+  async rejectPending(uploadId) {
+    if (!confirm('Reject this upload?')) return;
+    try {
+      await fetch(`${AppState.serverUrl}/api/admin/pending/${uploadId}/reject`, {
+        method: 'POST',
+        headers: { 'x-admin-auth': AppState.adminToken }
+      });
+      Toast.show('Upload rejected', 'info');
+      this.loadPending();
+      this.loadStats();
+    } catch (e) {
+      Toast.show('Reject failed', 'error');
+    }
   },
 
   async loadUploads() {
     const container = DOM.adminUploadsList();
     if (!container) return;
-
     container.innerHTML = '<p style="color:var(--text-tertiary)">Loading uploads...</p>';
 
     try {
@@ -1015,21 +1207,21 @@ const Admin = {
       data.uploads.forEach(upload => {
         const el = document.createElement('div');
         el.className = 'admin-upload-item';
-
-        const imagesHtml = upload.files.map(f => 
+        const imagesHtml = upload.files.map(f =>
           `<img src="${AppState.serverUrl}${f.url}" class="admin-upload-img" alt="" onclick="Admin.viewImage('${AppState.serverUrl}${f.url}')">`
         ).join('');
 
-        const statusClass = upload.status === 'completed' ? 'status-completed' : 
+        const statusClass = upload.status === 'completed' ? 'status-completed' :
                            upload.status === 'error' ? 'status-error' : 'status-processing';
 
         el.innerHTML = `
           <div class="admin-upload-images">${imagesHtml}</div>
           <div class="admin-upload-info">
-            <h4>Upload #${upload.id}</h4>
+            <h4>Upload #${upload.id} - ${upload.username || 'Anonymous'}</h4>
             <div class="admin-upload-meta">
               <div>📅 ${Utils.formatDate(upload.timestamp)}</div>
               <div>📁 ${upload.files.length} files</div>
+              ${upload.profileLink ? `<div>🔗 ${upload.profileLink}</div>` : ''}
               ${upload.cardId ? `<div>🎴 Card: ${upload.cardId}</div>` : ''}
               ${upload.error ? `<div style="color:#ef4444">❌ ${upload.error}</div>` : ''}
             </div>
@@ -1046,7 +1238,6 @@ const Admin = {
   async loadCards() {
     const container = DOM.adminCardsList();
     if (!container) return;
-
     container.innerHTML = '<p style="color:var(--text-tertiary)">Loading cards...</p>';
 
     try {
@@ -1064,16 +1255,14 @@ const Admin = {
       data.cards.forEach(card => {
         const el = document.createElement('div');
         el.className = 'admin-card-item';
-
-        const sourceClass = card.source === 'ai' ? 'source-ai' : 
-                           card.source === 'manual' ? 'source-manual' : 'source-mock';
+        const sourceClass = card.source === 'ai' ? 'source-ai' : card.source === 'manual' ? 'source-manual' : 'source-mock';
 
         el.innerHTML = `
           <div class="admin-card-preview" style="background: ${card.rarityData?.color || card.color || '#4b5563'}">
             ${card.name}
           </div>
           <div class="admin-card-info">
-            <h4>${card.name}</h4>
+            <h4>${card.name} <span style="font-size:0.8rem;color:var(--text-tertiary)">@${card.username || 'user'}</span></h4>
             <div class="admin-card-meta">
               ${card.rarity.toUpperCase()} | ⭐ ${card.score} | ${card.grade}
             </div>
@@ -1096,11 +1285,10 @@ const Admin = {
     const score = parseFloat(document.getElementById('manualScore').value);
     const grade = document.getElementById('manualGrade').value;
     const description = document.getElementById('manualDescription').value.trim();
+    const username = document.getElementById('manualUsername')?.value?.trim() || 'Admin';
+    const profileLink = document.getElementById('manualProfileLink')?.value?.trim() || '';
 
-    if (!name) {
-      Toast.show('Card name required!', 'error');
-      return;
-    }
+    if (!name) { Toast.show('Card name required!', 'error'); return; }
 
     const stats = {
       creativity: parseInt(document.getElementById('statCreativity').value) || 70,
@@ -1118,24 +1306,19 @@ const Admin = {
           'Content-Type': 'application/json',
           'x-admin-auth': AppState.adminToken
         },
-        body: JSON.stringify({ name, rarity, score, grade, stats, description })
+        body: JSON.stringify({ name, rarity, score, grade, stats, description, username, profileLink })
       });
 
       const result = await response.json();
-
       if (result.success) {
         Toast.show(`Card "${name}" created!`, 'success');
         AudioEngine.success();
-
-        // Clear form
         document.getElementById('manualName').value = '';
         document.getElementById('manualDescription').value = '';
-
-        // Refresh
         this.loadStats();
         if (this.currentTab === 'cards') this.loadCards();
       } else {
-        Toast.show(result.error || 'Failed to create card', 'error');
+        Toast.show(result.error || 'Failed', 'error');
         AudioEngine.error();
       }
     } catch (e) {
@@ -1146,13 +1329,11 @@ const Admin = {
 
   async deleteCard(id) {
     if (!confirm('Delete this card?')) return;
-
     try {
       const response = await fetch(`${AppState.serverUrl}/api/admin/cards/${id}`, {
         method: 'DELETE',
         headers: { 'x-admin-auth': AppState.adminToken }
       });
-
       const result = await response.json();
       if (result.success) {
         Toast.show('Card deleted', 'success');
@@ -1167,15 +1348,8 @@ const Admin = {
   viewImage(url) {
     const modal = document.createElement('div');
     modal.className = 'image-modal';
-    modal.innerHTML = `
-      <img src="${url}" alt="">
-      <button class="image-modal-close">&times;</button>
-    `;
-    modal.addEventListener('click', (e) => {
-      if (e.target === modal || e.target.classList.contains('image-modal-close')) {
-        modal.remove();
-      }
-    });
+    modal.innerHTML = `<img src="${url}" alt=""><button class="image-modal-close">&times;</button>`;
+    modal.addEventListener('click', (e) => { if (e.target === modal || e.target.classList.contains('image-modal-close')) modal.remove(); });
     document.body.appendChild(modal);
   }
 };
@@ -1212,13 +1386,11 @@ const ScrollAnimations = {
 const Keyboard = {
   init() {
     document.addEventListener('keydown', (e) => {
-      // Admin shortcut: Shift+A
       if (e.shiftKey && e.key === 'A') {
         e.preventDefault();
         Navigation.navigateTo('admin');
         return;
       }
-
       if (e.key === 'Escape') {
         if (!DOM.processingOverlay().classList.contains('hidden')) return;
         if (AppState.currentPage === 'detail') Navigation.back();
@@ -1245,7 +1417,6 @@ function init() {
   Utils.loadState();
   AudioEngine.init();
 
-  // Sound toggle
   const st = DOM.soundToggle();
   if (st) {
     st.addEventListener('click', () => {
@@ -1256,30 +1427,26 @@ function init() {
     st.textContent = AppState.soundEnabled ? '🔊' : '🔇';
   }
 
-  // Navbar logo click -> home
   const logo = DOM.navbarLogo();
   if (logo) {
     logo.addEventListener('click', () => Navigation.navigateTo('landing'));
     logo.addEventListener('mouseenter', () => AudioEngine.hover());
   }
 
-  // Landing buttons
   const cta = DOM.ctaButton();
   if (cta) cta.addEventListener('click', () => Navigation.navigateTo('upload'));
   const view = DOM.viewCardsBtn();
   if (view) view.addEventListener('click', () => Navigation.navigateTo('collection'));
 
-  // Init modules
   Upload.init();
+  ProfilePic.init();
   Collection.init();
   CardDetail.init();
   ScrollAnimations.init();
   Keyboard.init();
 
-  // Initial render
   Upload.updateNavStats();
 
-  // Start on landing
   Object.values(DOM.pages).forEach(p => {
     const el = p();
     if (el && el.id !== 'landingPage') {
@@ -1288,7 +1455,6 @@ function init() {
     }
   });
 
-  // Parallax effect for hero
   document.addEventListener('mousemove', (e) => {
     const spheres = document.querySelectorAll('.glow-sphere');
     const x = (e.clientX / window.innerWidth - 0.5) * 20;
@@ -1300,9 +1466,6 @@ function init() {
   });
 }
 
-// ==========================================
-// BOOT
-// ==========================================
 if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', init);
 } else {
