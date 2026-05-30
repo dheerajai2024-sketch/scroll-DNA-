@@ -637,7 +637,7 @@ const Detail = {
     if (!card) return;
     const rd = card.rarityData || Util.getRarityData(card.rarity);
 
-    // Trading card visual
+    // Trading card visual - FULL PLAYING CARD WITH ALL STATS
     const canvas = document.getElementById('cardCanvas');
     const r = 2*Math.PI*40;
     const offset = r * (1 - card.score/10);
@@ -645,16 +645,38 @@ const Detail = {
       ? `<div class="tc-avatar"><img src="${card.profilePicUrl}" alt=""></div>`
       : `<div class="tc-avatar"><div class="tc-avatar-placeholder">👤</div></div>`;
 
+    // Build all 6 stats with mini bars for the card
+    const statsEntries = Object.entries(card.stats || {});
+    const statsGridHtml = statsEntries.map(([key, val]) => `
+      <div class="tc-stat-item">
+        <span class="tc-stat-name">${key.slice(0,3).toUpperCase()}</span>
+        <span class="tc-stat-val">${val}</span>
+      </div>
+      <div class="tc-stat-bar">
+        <div class="tc-stat-bar-fill" style="width:${val}%"></div>
+      </div>
+    `).join('');
+
+    // Serial number from card ID
+    const serial = card.id ? card.id.slice(-8).toUpperCase() : '00000000';
+
     if (canvas) {
       canvas.innerHTML = `
-        <div class="trading-card" id="tradingCard" style="background:${rd.gradient};border-color:${rd.border};box-shadow:0 20px 60px ${rd.glow||'rgba(0,0,0,0.5)'}">
+        <div class="trading-card" id="tradingCard" style="background:${rd.gradient};border-color:${rd.border};box-shadow:0 0 0 4px rgba(255,255,255,0.08),0 0 0 8px rgba(255,255,255,0.04),0 20px 60px ${rd.glow||'rgba(0,0,0,0.5)'},0 0 40px ${rd.glow||'rgba(124,106,255,0.15)'}">
+          <div class="tc-corner tl"></div>
+          <div class="tc-corner tr"></div>
+          <div class="tc-corner bl"></div>
+          <div class="tc-corner br"></div>
+
           <div class="tc-header">
             <span class="tc-rarity-lbl">${card.rarity.toUpperCase()}</span>
             <span class="tc-grade">${card.grade}</span>
           </div>
+
           <div class="tc-profile">${profileHtml}</div>
           <div class="tc-name">${card.name}</div>
-          <div class="tc-user">@${card.username||'anonymous'}</div>
+          <div class="tc-user">@${card.username || 'anonymous'}</div>
+
           <div class="tc-ring">
             <svg viewBox="0 0 100 100">
               <circle cx="50" cy="50" r="40" fill="none" stroke="rgba(255,255,255,0.2)" stroke-width="7"/>
@@ -664,12 +686,28 @@ const Detail = {
             </svg>
             <div class="tc-ring-val">${card.score}</div>
           </div>
-          <div class="tc-stats-row">
-            <span>CR:${card.stats?.creativity||0}</span>
-            <span>EN:${card.stats?.engagement||0}</span>
-            <span>VI:${card.stats?.virality||0}</span>
+
+          <div class="tc-desc">${card.description || `A ${card.rarity} DNA card with exceptional social media presence.`}</div>
+
+          <div class="tc-divider"></div>
+
+          <div class="tc-stats-grid">
+            ${statsGridHtml}
           </div>
+
+          <div class="tc-divider"></div>
+
+          <div class="tc-bottom-info">
+            <span class="tc-info-badge">🔥 STREAK ${State.streak}</span>
+            <span class="tc-info-badge">💎 ${rd.weight}× MULTIPLIER</span>
+            <span class="tc-info-badge">📅 ${new Date(card.createdAt).toLocaleDateString('en-US',{month:'short',day:'numeric'})}</span>
+            <span class="tc-info-badge">🤖 ${(card.source || 'mock').toUpperCase()}</span>
+          </div>
+
+          <div class="tc-watermark">⬡ SCROLL DNA</div>
+          <div class="tc-serial">#${serial}</div>
         </div>`;
+
       // Animate ring
       setTimeout(() => {
         const ring = document.getElementById('scoreRing');
@@ -677,12 +715,12 @@ const Detail = {
       }, 100);
     }
 
-    // Detail info panel
+    // Detail info panel (below card)
     const info = document.getElementById('detailInfo');
     if (info) {
       info.innerHTML = `
         <h2>${card.name}</h2>
-        <p>${card.description||''}</p>
+        <p>${card.description || ''}</p>
         ${card.profileLink ? `<a href="${card.profileLink}" target="_blank" class="profile-link">🔗 ${card.profileLink}</a>` : ''}
         <div class="detail-badges">
           <span class="detail-badge">🔥 Streak: ${State.streak}</span>
@@ -692,10 +730,10 @@ const Detail = {
         </div>`;
     }
 
-    // Stats
+    // Stats breakdown panel (full bars)
     const sg = document.getElementById('statsGrid');
     if (sg) {
-      sg.innerHTML = Object.entries(card.stats||{}).map(([key,val]) => `
+      sg.innerHTML = statsEntries.map(([key,val]) => `
         <div class="stat-row">
           <div class="stat-row-top">
             <span class="stat-row-name">${key.charAt(0).toUpperCase()+key.slice(1)}</span>
@@ -732,7 +770,6 @@ const Detail = {
   async download() {
     const card = this.currentCard;
     if (!card) return;
-    // Try html2canvas if available, else export JSON
     try {
       const tc = document.getElementById('tradingCard');
       if (!tc) throw new Error('no card');
@@ -746,8 +783,36 @@ const Detail = {
           document.head.appendChild(s);
         });
       }
+
       toast('Capturing card…','info',2000);
-      const canvas = await window.html2canvas(tc, { backgroundColor:null, scale:2, useCORS:true });
+
+      // Create a wrapper with visible background for the download
+      const wrapper = document.createElement('div');
+      wrapper.style.cssText = `
+        position: fixed; top: -9999px; left: -9999px;
+        width: 400px; height: 600px;
+        background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+        display: flex; align-items: center; justify-content: center;
+        padding: 40px;
+        border-radius: 20px;
+      `;
+
+      // Clone the card into the wrapper
+      const clone = tc.cloneNode(true);
+      clone.style.transform = 'none';
+      clone.style.boxShadow = '0 0 0 4px rgba(255,255,255,0.15), 0 0 0 8px rgba(255,255,255,0.08), 0 25px 80px rgba(0,0,0,0.8), 0 0 60px rgba(124,106,255,0.2)';
+      wrapper.appendChild(clone);
+      document.body.appendChild(wrapper);
+
+      const canvas = await window.html2canvas(wrapper, { 
+        backgroundColor: null, 
+        scale: 3, 
+        useCORS: true,
+        logging: false
+      });
+
+      document.body.removeChild(wrapper);
+
       const link = document.createElement('a');
       link.download = `scroll-dna-${card.name.replace(/\s+/g,'-')}.png`;
       link.href = canvas.toDataURL('image/png');
