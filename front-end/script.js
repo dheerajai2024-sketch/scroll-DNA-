@@ -664,6 +664,7 @@ const Detail = {
     if (canvas) {
       canvas.innerHTML = `
         <div class="trading-card" id="tradingCard" style="background:${rd.gradient};border-color:${rd.border};box-shadow:0 0 0 5px rgba(255,255,255,0.1),0 0 0 10px rgba(255,255,255,0.05),0 25px 80px ${rd.glow || 'rgba(0,0,0,0.8)'},0 0 50px ${rd.glow || 'rgba(124,106,255,0.2)'}">
+          <div class="tc-mirror"></div>
           <div class="tc-corner tl"></div>
           <div class="tc-corner tr"></div>
           <div class="tc-corner bl"></div>
@@ -787,31 +788,40 @@ const Detail = {
 
       toast('Capturing card…','info',2000);
 
-      // Create a wrapper with light background for visibility
+      // Create a wrapper with DARK background (matching the website)
+      // so the card looks exactly like it does on the site
       const wrapper = document.createElement('div');
       wrapper.style.cssText = `
         position: fixed; top: -9999px; left: -9999px;
-        width: 700px; height: 450px;
-        background: linear-gradient(135deg, #f0f0f5 0%, #e8e8f0 50%, #dddde8 100%);
+        width: 800px; height: 500px;
+        background: linear-gradient(135deg, #0a0a0f 0%, #111118 50%, #1a1a2e 100%);
         display: flex; align-items: center; justify-content: center;
-        padding: 50px;
-        border-radius: 24px;
+        padding: 60px;
       `;
 
       // Clone the card into the wrapper
       const clone = tc.cloneNode(true);
       clone.style.transform = 'none';
-      clone.style.boxShadow = '0 0 0 5px rgba(255,255,255,0.9), 0 0 0 10px rgba(0,0,0,0.1), 0 30px 100px rgba(0,0,0,0.4)';
+      // Enhanced glow for download - mirror/glass effect
+      clone.style.boxShadow = `
+        0 0 0 3px rgba(255,255,255,0.15),
+        0 0 0 6px rgba(255,255,255,0.08),
+        0 0 0 9px rgba(255,255,255,0.04),
+        0 30px 100px rgba(0,0,0,0.9),
+        0 0 80px rgba(124,106,255,0.25),
+        inset 0 1px 0 rgba(255,255,255,0.1)
+      `;
       wrapper.appendChild(clone);
       document.body.appendChild(wrapper);
 
       const canvas = await window.html2canvas(wrapper, { 
-        backgroundColor: null, 
+        backgroundColor: '#0a0a0f', 
         scale: 3, 
         useCORS: true,
         logging: false,
-        width: 700,
-        height: 450
+        width: 800,
+        height: 500,
+        allowTaint: true
       });
 
       document.body.removeChild(wrapper);

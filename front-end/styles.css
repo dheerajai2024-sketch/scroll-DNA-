@@ -661,6 +661,27 @@ button { cursor: pointer; border: none; background: none; color: inherit; }
   animation: cardReveal 0.5s ease;
   font-family: var(--font-display);
 }
+
+/* Mirror / Glossy reflection effect */
+.trading-card .tc-mirror {
+  position: absolute;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: linear-gradient(
+    105deg,
+    transparent 40%,
+    rgba(255,255,255,0.08) 45%,
+    rgba(255,255,255,0.18) 50%,
+    rgba(255,255,255,0.08) 55%,
+    transparent 60%
+  );
+  pointer-events: none;
+  z-index: 10;
+  animation: mirrorShine 3s ease-in-out infinite;
+}
+@keyframes mirrorShine {
+  0%, 100% { transform: translateX(-100%); }
+  50% { transform: translateX(100%); }
+}
 @keyframes cardReveal {
   from { transform: scale(0.9) rotateY(20deg); opacity: 0; }
   to   { transform: scale(1) rotateY(0deg); opacity: 1; }
