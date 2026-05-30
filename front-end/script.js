@@ -637,71 +637,73 @@ const Detail = {
     if (!card) return;
     const rd = card.rarityData || Util.getRarityData(card.rarity);
 
-    // Trading card visual - FULL PLAYING CARD WITH ALL STATS
+    // HORIZONTAL TRADING CARD - Sports card style
     const canvas = document.getElementById('cardCanvas');
-    const r = 2*Math.PI*40;
-    const offset = r * (1 - card.score/10);
-    const profileHtml = card.profilePicUrl
-      ? `<div class="tc-avatar"><img src="${card.profilePicUrl}" alt=""></div>`
-      : `<div class="tc-avatar"><div class="tc-avatar-placeholder">👤</div></div>`;
+    const r = 2 * Math.PI * 32;
+    const offset = r * (1 - card.score / 10);
 
-    // Build all 6 stats with mini bars for the card
+    const avatarHtml = card.profilePicUrl
+      ? `<div class="tc-left-avatar"><img src="${card.profilePicUrl}" alt=""></div>`
+      : `<div class="tc-left-avatar"><div class="tc-left-avatar-placeholder">👤</div></div>`;
+
+    // Build all 6 stats as horizontal bars
     const statsEntries = Object.entries(card.stats || {});
-    const statsGridHtml = statsEntries.map(([key, val]) => `
-      <div class="tc-stat-item">
-        <span class="tc-stat-name">${key.slice(0,3).toUpperCase()}</span>
-        <span class="tc-stat-val">${val}</span>
-      </div>
-      <div class="tc-stat-bar">
-        <div class="tc-stat-bar-fill" style="width:${val}%"></div>
+    const statsTableHtml = statsEntries.map(([key, val]) => `
+      <div class="tc-stat-row">
+        <span class="tc-stat-label">${key.charAt(0).toUpperCase() + key.slice(1)}</span>
+        <div class="tc-stat-track">
+          <div class="tc-stat-fill" style="width:${val}%"></div>
+        </div>
+        <span class="tc-stat-num">${val}</span>
       </div>
     `).join('');
 
-    // Serial number from card ID
     const serial = card.id ? card.id.slice(-8).toUpperCase() : '00000000';
+    const dateStr = new Date(card.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 
     if (canvas) {
       canvas.innerHTML = `
-        <div class="trading-card" id="tradingCard" style="background:${rd.gradient};border-color:${rd.border};box-shadow:0 0 0 4px rgba(255,255,255,0.08),0 0 0 8px rgba(255,255,255,0.04),0 20px 60px ${rd.glow||'rgba(0,0,0,0.5)'},0 0 40px ${rd.glow||'rgba(124,106,255,0.15)'}">
+        <div class="trading-card" id="tradingCard" style="background:${rd.gradient};border-color:${rd.border};box-shadow:0 0 0 5px rgba(255,255,255,0.1),0 0 0 10px rgba(255,255,255,0.05),0 25px 80px ${rd.glow || 'rgba(0,0,0,0.8)'},0 0 50px ${rd.glow || 'rgba(124,106,255,0.2)'}">
           <div class="tc-corner tl"></div>
           <div class="tc-corner tr"></div>
           <div class="tc-corner bl"></div>
           <div class="tc-corner br"></div>
 
-          <div class="tc-header">
-            <span class="tc-rarity-lbl">${card.rarity.toUpperCase()}</span>
-            <span class="tc-grade">${card.grade}</span>
+          <!-- LEFT SIDE -->
+          <div class="tc-left">
+            ${avatarHtml}
+            <div class="tc-left-score-ring">
+              <svg viewBox="0 0 100 100">
+                <circle cx="50" cy="50" r="32" fill="none" stroke="rgba(255,255,255,0.2)" stroke-width="6"/>
+                <circle cx="50" cy="50" r="32" fill="none" stroke="white" stroke-width="6"
+                  stroke-dasharray="${r}" stroke-dashoffset="${r}"
+                  stroke-linecap="round" id="scoreRing"/>
+              </svg>
+              <div class="tc-left-score-val">${card.score}</div>
+            </div>
+            <div class="tc-left-rarity">${card.rarity.toUpperCase()}</div>
+            <div class="tc-left-grade">${card.grade}</div>
           </div>
 
-          <div class="tc-profile">${profileHtml}</div>
-          <div class="tc-name">${card.name}</div>
-          <div class="tc-user">@${card.username || 'anonymous'}</div>
+          <!-- RIGHT SIDE -->
+          <div class="tc-right">
+            <div class="tc-right-header">
+              <div class="tc-right-name">${card.name}</div>
+              <div class="tc-right-user">@${card.username || 'anonymous'}</div>
+            </div>
 
-          <div class="tc-ring">
-            <svg viewBox="0 0 100 100">
-              <circle cx="50" cy="50" r="40" fill="none" stroke="rgba(255,255,255,0.2)" stroke-width="7"/>
-              <circle cx="50" cy="50" r="40" fill="none" stroke="white" stroke-width="7"
-                stroke-dasharray="${r}" stroke-dashoffset="${r}"
-                stroke-linecap="round" id="scoreRing"/>
-            </svg>
-            <div class="tc-ring-val">${card.score}</div>
-          </div>
+            <div class="tc-right-desc">${card.description || `A ${card.rarity} DNA card with exceptional social media presence.`}</div>
 
-          <div class="tc-desc">${card.description || `A ${card.rarity} DNA card with exceptional social media presence.`}</div>
+            <div class="tc-stats-table">
+              ${statsTableHtml}
+            </div>
 
-          <div class="tc-divider"></div>
-
-          <div class="tc-stats-grid">
-            ${statsGridHtml}
-          </div>
-
-          <div class="tc-divider"></div>
-
-          <div class="tc-bottom-info">
-            <span class="tc-info-badge">🔥 STREAK ${State.streak}</span>
-            <span class="tc-info-badge">💎 ${rd.weight}× MULTIPLIER</span>
-            <span class="tc-info-badge">📅 ${new Date(card.createdAt).toLocaleDateString('en-US',{month:'short',day:'numeric'})}</span>
-            <span class="tc-info-badge">🤖 ${(card.source || 'mock').toUpperCase()}</span>
+            <div class="tc-right-footer">
+              <span class="tc-footer-badge">🔥 STREAK ${State.streak}</span>
+              <span class="tc-footer-badge">💎 ${rd.weight}× MULTIPLIER</span>
+              <span class="tc-footer-badge">📅 ${dateStr}</span>
+              <span class="tc-footer-badge">🤖 ${(card.source || 'mock').toUpperCase()}</span>
+            </div>
           </div>
 
           <div class="tc-watermark">⬡ SCROLL DNA</div>
@@ -715,7 +717,7 @@ const Detail = {
       }, 100);
     }
 
-    // Detail info panel (below card)
+    // Detail info panel (below card on page)
     const info = document.getElementById('detailInfo');
     if (info) {
       info.innerHTML = `
@@ -730,7 +732,7 @@ const Detail = {
         </div>`;
     }
 
-    // Stats breakdown panel (full bars)
+    // Stats breakdown panel (full bars below card)
     const sg = document.getElementById('statsGrid');
     if (sg) {
       sg.innerHTML = statsEntries.map(([key,val]) => `
@@ -744,7 +746,6 @@ const Detail = {
           </div>
         </div>`).join('');
 
-      // Animate bars
       setTimeout(() => {
         sg.querySelectorAll('.stat-bar-fill').forEach(b => {
           b.style.width = b.dataset.val + '%';
@@ -786,21 +787,21 @@ const Detail = {
 
       toast('Capturing card…','info',2000);
 
-      // Create a wrapper with visible background for the download
+      // Create a wrapper with light background for visibility
       const wrapper = document.createElement('div');
       wrapper.style.cssText = `
         position: fixed; top: -9999px; left: -9999px;
-        width: 400px; height: 600px;
-        background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+        width: 700px; height: 450px;
+        background: linear-gradient(135deg, #f0f0f5 0%, #e8e8f0 50%, #dddde8 100%);
         display: flex; align-items: center; justify-content: center;
-        padding: 40px;
-        border-radius: 20px;
+        padding: 50px;
+        border-radius: 24px;
       `;
 
       // Clone the card into the wrapper
       const clone = tc.cloneNode(true);
       clone.style.transform = 'none';
-      clone.style.boxShadow = '0 0 0 4px rgba(255,255,255,0.15), 0 0 0 8px rgba(255,255,255,0.08), 0 25px 80px rgba(0,0,0,0.8), 0 0 60px rgba(124,106,255,0.2)';
+      clone.style.boxShadow = '0 0 0 5px rgba(255,255,255,0.9), 0 0 0 10px rgba(0,0,0,0.1), 0 30px 100px rgba(0,0,0,0.4)';
       wrapper.appendChild(clone);
       document.body.appendChild(wrapper);
 
@@ -808,7 +809,9 @@ const Detail = {
         backgroundColor: null, 
         scale: 3, 
         useCORS: true,
-        logging: false
+        logging: false,
+        width: 700,
+        height: 450
       });
 
       document.body.removeChild(wrapper);
