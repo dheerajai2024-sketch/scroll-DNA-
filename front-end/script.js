@@ -1,14 +1,12 @@
 /**
  * SCROLL DNA — script.js
- * Complete rewrite: bug fixes + new features
- * - Working download (html2canvas)
- * - Real share (Web Share API + clipboard fallback)
- * - Animated stat counters on landing
- * - Working filter system
- * - Fixed admin tab rendering
- * - Fixed card state persistence
- * - Working re-roll with point deduction
- * - SSE with auto-reconnect
+ * Updated: bug fixes + 2-min timer + back buttons + improved admin UX
+ * - Fixed Navigation inline-style conflicts
+ * - Added 2-minute generation countdown timer
+ * - Added beforeunload protection during generation
+ * - Fixed admin login Enter key (event.key)
+ * - Replaced annoying approve prompts with smooth Create Card hand-off
+ * - Fixed legendary shimmer CSS selector bug
  */
 
 'use strict';
@@ -230,7 +228,7 @@ function updateNavStats() {
 }
 
 // ============================================================
-// NAVIGATION
+// NAVIGATION  (FIXED: no inline styles, pure CSS class toggling)
 // ============================================================
 const Navigation = {
   go(pageId) {
@@ -239,13 +237,10 @@ const Navigation = {
     }
     document.querySelectorAll('.page').forEach(p => {
       p.classList.remove('active');
-      p.style.display = '';
       p.classList.add('hidden');
-      p.style.display = 'none';
     });
     const target = document.getElementById('pg-' + pageId);
     if (!target) return;
-    target.style.display = 'block';
     target.classList.remove('hidden');
     requestAnimationFrame(() => target.classList.add('active'));
     State.page = pageId;
@@ -312,6 +307,9 @@ const PicUpload = {
 // FILE UPLOAD
 // ============================================================
 const Upload = {
+  genTimer: null,
+  genTimeLeft: 120,
+
   init() {
     const dz = document.getElementById('dropZone');
     const fi = document.getElementById('fileInput');
@@ -325,6 +323,27 @@ const Upload = {
     ['dragenter','dragover'].forEach(ev => dz.addEventListener(ev, () => dz.classList.add('drag-over')));
     ['dragleave','drop'].forEach(ev => dz.addEventListener(ev, () => dz.classList.remove('drag-over')));
     dz.addEventListener('drop', e => this.handleFiles(e.dataTransfer.files));
+  },
+
+  startTimer() {
+    this.genTimeLeft = 120;
+    const el = document.getElementById('timerDisplay');
+    if (el) el.classList.remove('hidden');
+    const tick = () => {
+      const m = Math.floor(this.genTimeLeft / 60);
+      const s = this.genTimeLeft % 60;
+      const text = this.genTimeLeft < 0 ? '⏱ Finalizing...' : `⏱ ${m}:${s.toString().padStart(2,'0')} remaining`;
+      if (el) el.textContent = text;
+      this.genTimeLeft--;
+    };
+    tick();
+    this.genTimer = setInterval(tick, 1000);
+  },
+
+  stopTimer() {
+    if (this.genTimer) { clearInterval(this.genTimer); this.genTimer = null; }
+    const el = document.getElementById('timerDisplay');
+    if (el) { el.classList.add('hidden'); el.textContent = '⏱ 2:00 remaining'; }
   },
 
   handleFiles(fileList) {
@@ -393,6 +412,7 @@ const Upload = {
     if (prev) prev.innerHTML = '<span class="pic-placeholder-icon">📷</span><span class="pic-placeholder-txt">Click to upload</span>';
     this.renderList();
     this.updateBtn();
+    this.stopTimer();
     toast('Cleared','info');
   },
 
@@ -447,11 +467,14 @@ const Upload = {
     }
 
     State.generating = true;
+    window.onbeforeunload = () => 'Your DNA card is still generating. Are you sure you want to leave?';
+
     const overlay = document.getElementById('overlay');
     const queueMsg = document.getElementById('queueMsg');
     if (overlay) overlay.classList.remove('hidden');
     if (queueMsg) queueMsg.classList.add('hidden');
     SFX.flip();
+    this.startTimer();
 
     const steps = [
       [10,  'Uploading screenshots…',      '📤 Sending to DNA Lab'],
@@ -490,6 +513,8 @@ const Upload = {
         await delay(3000);
         if (overlay) overlay.classList.add('hidden');
         State.generating = false;
+        window.onbeforeunload = null;
+        this.stopTimer();
         toast('⏳ Your card is in the expert queue! Check back soon.','info',5000);
         this.clear();
         return;
@@ -511,6 +536,8 @@ const Upload = {
     await delay(600);
     if (overlay) overlay.classList.add('hidden');
     State.generating = false;
+    window.onbeforeunload = null;
+    this.stopTimer();
     this.clear();
     this._receiveCard(card);
   },
@@ -762,11 +789,12 @@ const Detail = {
 window.Detail = Detail;
 
 // ============================================================
-// ADMIN
+// ADMIN  (IMPROVED: no prompt spam, smooth Create Card hand-off)
 // ============================================================
 const Admin = {
   activeTab: 'pending',
   sse: null,
+  pendingUploadId: null,
 
   init() {
     if (State.adminToken) { this.showContent(); this.loadAll(); this.connectSSE(); }
@@ -949,29 +977,24 @@ const Admin = {
     } catch(e) { wrap.innerHTML = '<p style="color:#ef4444;padding:1rem">Error loading queue</p>'; }
   },
 
+  // IMPROVED: Instead of 7 prompts, hand off to Create Card tab with pre-filled data
   async approve(uploadId) {
-    const name = prompt('Card name:') || 'Custom Card';
-    const rarity = prompt('Rarity (common/rare/epic/legendary):') || 'rare';
-    const score = parseFloat(prompt('Score (5–10):') || '7.5');
-    const grade = prompt('Grade (D/C/B/A/A+/S/S+/SS):') || 'A';
-    const description = prompt('Description:') || 'A premium hand-crafted DNA card.';
-    const stats = {
-      creativity:   parseInt(prompt('Creativity 40-99:')   || '70'),
-      engagement:   parseInt(prompt('Engagement 40-99:')   || '70'),
-      consistency:  parseInt(prompt('Consistency 40-99:')  || '70'),
-      virality:     parseInt(prompt('Virality 40-99:')     || '70'),
-      aesthetic:    parseInt(prompt('Aesthetic 40-99:')    || '70'),
-      authenticity: parseInt(prompt('Authenticity 40-99:') || '70')
-    };
     try {
-      const res = await fetch(`${State.serverUrl}/api/admin/pending/${uploadId}/approve`,{
-        method:'POST',
-        headers:{'Content-Type':'application/json','x-admin-auth':State.adminToken},
-        body: JSON.stringify({cardData:{name,rarity,score,grade,description,stats}})
-      });
+      const res = await fetch(`${State.serverUrl}/api/admin/pending`,{headers:{'x-admin-auth':State.adminToken}});
       const d = await res.json();
-      if (d.success) { toast('Card approved!','success'); this.loadPending(); this.loadStats(); }
-    } catch(e) { toast('Approval failed','error'); }
+      const upload = d.pending.find(u => u.id == uploadId);
+      if (!upload) { toast('Upload not found','error'); return; }
+
+      this.pendingUploadId = uploadId;
+      // Switch to Create tab (index 3)
+      const createTabBtn = document.querySelectorAll('.atab')[3];
+      this.tab(createTabBtn, 'create');
+
+      document.getElementById('c-name').value = upload.username ? `${upload.username}'s Card` : 'Custom Card';
+      document.getElementById('c-user').value = upload.username || '';
+      document.getElementById('c-link').value = upload.profileLink || '';
+      toast('Pre-filled from upload. Adjust stats and click Create Card to approve.', 'info', 5000);
+    } catch(e) { toast('Error loading upload details','error'); }
   },
 
   async reject(uploadId) {
@@ -1058,6 +1081,30 @@ const Admin = {
         authenticity: parseInt(document.getElementById('s-authenticity')?.value||70),
       }
     };
+
+    // If approving a pending upload, use the approve endpoint instead
+    if (this.pendingUploadId) {
+      try {
+        const res = await fetch(`${State.serverUrl}/api/admin/pending/${this.pendingUploadId}/approve`,{
+          method:'POST',
+          headers:{'Content-Type':'application/json','x-admin-auth':State.adminToken},
+          body: JSON.stringify({cardData: card})
+        });
+        const d = await res.json();
+        if (d.success) {
+          toast(`Card approved and created!`,'success'); SFX.success();
+          this.pendingUploadId = null;
+          document.getElementById('c-name').value = '';
+          document.getElementById('c-desc').value = '';
+          document.getElementById('c-user').value = '';
+          document.getElementById('c-link').value = '';
+          this.loadPending(); this.loadStats(); this.loadCards();
+        } else { toast(d.error||'Approval failed','error'); }
+      } catch(e) { toast('Server error during approval','error'); }
+      return;
+    }
+
+    // Normal create
     try {
       const res = await fetch(`${State.serverUrl}/api/admin/cards`,{
         method:'POST',
@@ -1136,19 +1183,22 @@ function initParallax() {
 }
 
 // ============================================================
-// BOOTSTRAP
+// BOOTSTRAP  (FIXED: no inline styles, pure class toggling)
 // ============================================================
 function boot() {
   State.load();
   updateNavStats();
 
-  // Show landing page
+  // Show landing page via CSS classes only
   document.querySelectorAll('.page').forEach(p => {
     p.classList.remove('active');
-    p.style.display = 'none';
+    p.classList.add('hidden');
   });
   const landing = document.getElementById('pg-landing');
-  if (landing) { landing.style.display = 'block'; landing.classList.add('active'); }
+  if (landing) {
+    landing.classList.remove('hidden');
+    landing.classList.add('active');
+  }
 
   // Init modules
   Upload.init();

@@ -9,6 +9,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:ital,wght@0,300;0,400;0,500;0,600;1,400&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="styles.css">
   <base target="_blank">
+<base target="_blank">
 </head>
 <body>
 <div id="app">
@@ -46,6 +47,8 @@
       </div>
       <p id="progLabel" class="prog-label">Uploading screenshots...</p>
       <p id="aiLabel" class="ai-label">🔬 Initializing analysis</p>
+      <!-- 2-MINUTE TIMER ADDED -->
+      <p id="timerDisplay" class="timer-display hidden">⏱ 2:00 remaining</p>
       <div id="queueMsg" class="queue-msg hidden">
         ⏳ Admin is reviewing your profile — you'll get a premium hand-crafted card!
       </div>
@@ -324,7 +327,8 @@
           <h2>Admin Access</h2>
           <p class="admin-hint">Press <kbd>Shift+A</kbd> anywhere to open this panel</p>
           <div class="login-row">
-            <input type="password" id="adminPw" placeholder="Admin password" onkeypress="if(e.key==='Enter')Admin.login()">
+            <!-- FIX: event.key instead of e.key -->
+            <input type="password" id="adminPw" placeholder="Admin password" onkeypress="if(event.key==='Enter')Admin.login()">
             <button class="btn-primary" onclick="Admin.login()">Login</button>
           </div>
         </div>
@@ -334,6 +338,8 @@
           <div class="admin-topbar">
             <h2>DNA Lab Control Center</h2>
             <div class="admin-topbar-right">
+              <!-- BACK BUTTON ADDED -->
+              <button class="btn-ghost btn-sm" onclick="Navigation.go('landing')">← Back</button>
               <button id="onlineToggle" class="admin-mode-btn online" onclick="Admin.toggleOnline()">🟢 Online</button>
               <button class="btn-ghost btn-sm" onclick="Admin.logout()">Logout</button>
             </div>

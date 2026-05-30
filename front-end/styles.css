@@ -206,6 +206,18 @@ button { cursor: pointer; border: none; background: none; color: inherit; }
 }
 .queue-msg.hidden { display: none; }
 
+/* 2-MINUTE TIMER STYLES */
+.timer-display {
+  font-size: 0.95rem;
+  color: var(--accent);
+  font-weight: 700;
+  margin-top: 0.75rem;
+  font-family: var(--font-display);
+  letter-spacing: 0.02em;
+  text-shadow: 0 0 10px rgba(255,107,157,0.3);
+}
+.timer-display.hidden { display: none; }
+
 /* =============================================
    LANDING PAGE
    ============================================= */
@@ -606,8 +618,8 @@ button { cursor: pointer; border: none; background: none; color: inherit; }
 .epic    .card-grade-badge { background: rgba(168,85,247,0.15); color: var(--c-epic); }
 .legendary .card-grade-badge { background: rgba(245,158,11,0.15); color: var(--c-legendary); }
 
-/* Legendary shimmer */
-.legendary .col-card::before, .col-card.legendary::before {
+/* Legendary shimmer — FIXED SELECTOR */
+.col-card.legendary::before {
   content: '';
   position: absolute; inset: -1px; border-radius: inherit;
   background: linear-gradient(135deg, #f59e0b, #ef4444, #f59e0b, #ef4444);
