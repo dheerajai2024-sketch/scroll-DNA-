@@ -55,16 +55,17 @@
     }
     .login-card {
       background: var(--bg2); border: 1px solid var(--border);
-      border-radius: var(--radius-lg); padding: 2.5rem 2rem; width: 100%; max-width: 380px;
+      border-radius: var(--radius-lg); padding: 2.5rem 2rem; width: 100%; max-width: 420px;
     }
     .login-card h2 { font-family: var(--font-display); font-size: 1.5rem; font-weight: 700; margin-bottom: 0.5rem; }
     .login-card p { color: var(--text2); font-size: 0.85rem; margin-bottom: 1.5rem; }
     .login-card input {
       width: 100%; padding: 0.9rem 1rem; background: var(--bg3); border: 1.5px solid var(--border);
       border-radius: var(--radius-sm); color: var(--text); font-size: 1rem;
-      margin-bottom: 1rem; transition: border-color 0.2s;
+      margin-bottom: 0.75rem; transition: border-color 0.2s;
     }
     .login-card input:focus { outline: none; border-color: var(--primary); }
+    .login-card .url-hint { font-size: 0.75rem; color: var(--text3); text-align: left; margin-bottom: 0.3rem; padding-left: 0.2rem; }
     .btn-primary {
       width: 100%; padding: 0.9rem; border-radius: var(--radius-sm);
       background: linear-gradient(135deg, var(--primary), var(--accent));
@@ -73,6 +74,13 @@
     }
     .btn-primary:active { transform: scale(0.98); }
     .btn-primary:disabled { opacity: 0.5; }
+    .btn-secondary {
+      width: 100%; padding: 0.7rem; border-radius: var(--radius-sm);
+      background: var(--bg3); border: 1px solid var(--border);
+      color: var(--text2); font-weight: 500; font-size: 0.85rem;
+      margin-top: 0.5rem; transition: all 0.2s;
+    }
+    .btn-secondary:active { border-color: var(--border2); color: var(--text); }
 
     .dashboard { flex: 1; padding: 1rem; }
     .dash-header {
@@ -250,6 +258,9 @@
     @keyframes dots { 0%,20% { content: '.'; } 40% { content: '..'; } 60%,100% { content: '...'; } }
 
     .app-footer { padding: 1rem; text-align: center; font-size: 0.72rem; color: var(--text3); border-top: 1px solid var(--border); margin-top: auto; }
+
+    .server-url-box { margin-bottom: 1rem; }
+    .server-url-box input { margin-bottom: 0 !important; }
   </style>
 <base target="_blank">
 </head>
@@ -273,8 +284,15 @@
       <div style="font-size:3rem;margin-bottom:0.5rem">🧬</div>
       <h2>DNA Lab Admin</h2>
       <p>Enter your admin password to access the control center</p>
+
+      <div class="server-url-box">
+        <div class="url-hint">Server URL (auto-detected)</div>
+        <input type="text" id="urlInput" placeholder="http://localhost:3000" value="">
+      </div>
+
       <input type="password" id="pwInput" placeholder="Admin password" onkeydown="if(event.key==='Enter')App.login()">
       <button class="btn-primary" onclick="App.login()" id="loginBtn">Enter Lab</button>
+      <button class="btn-secondary" onclick="App.testConnection()" id="testBtn">🔄 Test Connection</button>
     </div>
     <p style="margin-top:1.5rem;color:var(--text3);font-size:0.8rem">Scroll DNA · AI-Powered Trading Cards</p>
   </div>
@@ -346,7 +364,7 @@
   </div>
 
   <footer class="app-footer" id="appFooter" style="display:none">
-    Scroll DNA Admin · <span id="connStatus">Connecting...</span>
+    <span id="connStatus">● Live</span> · <span id="serverUrlDisplay"></span>
   </footer>
 </div>
 
@@ -360,10 +378,9 @@
 <script>
 'use strict';
 
-const API = window.location.origin;
-
 const App = {
   token: localStorage.getItem('sdna_admin') || null,
+  serverUrl: localStorage.getItem('sdna_server_url') || '',
   sound: localStorage.getItem('sdna_admin_sound') !== 'false',
   notif: localStorage.getItem('sdna_admin_notif') === 'true',
   sse: null,
@@ -371,23 +388,73 @@ const App = {
   activeTab: 'pending',
   pendingUploadId: null,
   reconnectTimer: null,
+  loginAttempts: 0,
 
   init() {
-    if (this.token) { this.showDashboard(); this.connectSSE(); this.loadAll(); }
+    // Auto-detect server URL if not saved
+    if (!this.serverUrl) {
+      this.serverUrl = window.location.origin;
+    }
+    document.getElementById('urlInput').value = this.serverUrl;
+
+    if (this.token) { 
+      this.showDashboard(); 
+      this.connectSSE(); 
+      this.loadAll(); 
+    }
     else this.showLogin();
     this.updateSoundBtn();
     this.updateNotifBtn();
+    document.getElementById('serverUrlDisplay').textContent = this.serverUrl;
   },
 
+  getApi() { return this.serverUrl; },
+
+  // ── Test Connection ──
+  async testConnection() {
+    this.serverUrl = document.getElementById('urlInput').value.trim() || window.location.origin;
+    localStorage.setItem('sdna_server_url', this.serverUrl);
+    document.getElementById('serverUrlDisplay').textContent = this.serverUrl;
+
+    const btn = document.getElementById('testBtn');
+    btn.textContent = 'Testing...';
+    try {
+      const res = await fetch(`${this.serverUrl}/api/health`, { method: 'GET', signal: AbortSignal.timeout(5000) });
+      const d = await res.json();
+      if (d.status === 'ok') {
+        this.toast(`✅ Server online! Uploads: ${d.uploadsCount}, Cards: ${d.cardsCount}`, 'success', 4000);
+      } else {
+        this.toast('Server responded but status not OK', 'error');
+      }
+    } catch(e) {
+      this.toast('❌ Cannot reach server. Check URL and make sure backend is running.', 'error', 5000);
+    }
+    btn.textContent = '🔄 Test Connection';
+  },
+
+  // ── Auth ──
   async login() {
     const pw = document.getElementById('pwInput').value;
+    this.serverUrl = document.getElementById('urlInput').value.trim() || window.location.origin;
+    localStorage.setItem('sdna_server_url', this.serverUrl);
+    document.getElementById('serverUrlDisplay').textContent = this.serverUrl;
+
     const btn = document.getElementById('loginBtn');
     btn.disabled = true; btn.textContent = 'Checking...';
+
     try {
-      const res = await fetch(`${API}/api/admin/login`, {
+      const res = await fetch(`${this.serverUrl}/api/admin/login`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ password: pw })
       });
+
+      if (!res.ok) {
+        const text = await res.text();
+        this.toast('Wrong password or server error', 'error');
+        btn.disabled = false; btn.textContent = 'Enter Lab';
+        return;
+      }
+
       const d = await res.json();
       if (d.success) {
         this.token = d.token;
@@ -399,7 +466,9 @@ const App = {
       } else {
         this.toast('Wrong password', 'error');
       }
-    } catch(e) { this.toast('Server offline — check if backend is running', 'error', 5000); }
+    } catch(e) { 
+      this.toast('Cannot connect to server. Check the URL above.', 'error', 5000); 
+    }
     btn.disabled = false; btn.textContent = 'Enter Lab';
   },
 
@@ -423,13 +492,12 @@ const App = {
     document.getElementById('appFooter').style.display = 'block';
   },
 
-  // ── SSE with query param auth (EventSource can't send headers) ──
+  // ── SSE with query param auth ──
   connectSSE() {
     if (this.sse) this.sse.close();
     if (!this.token) return;
     try {
-      // FIX: Pass token as query parameter since EventSource can't send headers
-      this.sse = new EventSource(`${API}/api/admin/stream?token=${encodeURIComponent(this.token)}`);
+      this.sse = new EventSource(`${this.serverUrl}/api/admin/stream?token=${encodeURIComponent(this.token)}`);
       this.sse.onopen = () => { document.getElementById('connStatus').textContent = '● Live'; };
       this.sse.onmessage = e => {
         try {
@@ -441,7 +509,7 @@ const App = {
       this.sse.onerror = () => {
         document.getElementById('connStatus').textContent = '○ Reconnecting...';
         if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
-        this.reconnectTimer = setTimeout(() => this.connectSSE(), 4000);
+        this.reconnectTimer = setTimeout(() => this.connectSSE(), 5000);
       };
     } catch(e) {
       document.getElementById('connStatus').textContent = '○ Error';
@@ -465,7 +533,7 @@ const App = {
     const txt = document.getElementById('statusText');
     const isOnline = pill.classList.contains('online');
     try {
-      await fetch(`${API}/api/admin/status`, {
+      await fetch(`${this.serverUrl}/api/admin/status`, {
         method: 'POST', headers: { 'Content-Type': 'application/json', 'x-admin-auth': this.token },
         body: JSON.stringify({ online: !isOnline })
       });
@@ -501,7 +569,7 @@ const App = {
 
   async loadStats() {
     try {
-      const res = await fetch(`${API}/api/admin/stats`, { headers: { 'x-admin-auth': this.token } });
+      const res = await fetch(`${this.serverUrl}/api/admin/stats`, { headers: { 'x-admin-auth': this.token } });
       const d = await res.json();
       const grid = document.getElementById('statsGrid');
       grid.innerHTML = [
@@ -523,7 +591,7 @@ const App = {
     const wrap = document.getElementById('pendingList');
     wrap.innerHTML = '<div class="empty"><span class="empty-icon loading-dots">Loading</span></div>';
     try {
-      const res = await fetch(`${API}/api/admin/pending`, { headers: { 'x-admin-auth': this.token } });
+      const res = await fetch(`${this.serverUrl}/api/admin/pending`, { headers: { 'x-admin-auth': this.token } });
       const d = await res.json();
       if (!d.pending?.length) { wrap.innerHTML = '<div class="empty"><span class="empty-icon">✅</span>No pending uploads — all caught up!</div>'; return; }
       wrap.innerHTML = '';
@@ -535,7 +603,7 @@ const App = {
     const wrap = document.getElementById('uploadsList');
     wrap.innerHTML = '<div class="empty"><span class="empty-icon loading-dots">Loading</span></div>';
     try {
-      const res = await fetch(`${API}/api/admin/uploads`, { headers: { 'x-admin-auth': this.token } });
+      const res = await fetch(`${this.serverUrl}/api/admin/uploads`, { headers: { 'x-admin-auth': this.token } });
       const d = await res.json();
       if (!d.uploads?.length) { wrap.innerHTML = '<div class="empty"><span class="empty-icon">📭</span>No uploads yet</div>'; return; }
       wrap.innerHTML = '';
@@ -547,7 +615,7 @@ const App = {
     const wrap = document.getElementById('cardsList');
     wrap.innerHTML = '<div class="empty"><span class="empty-icon loading-dots">Loading</span></div>';
     try {
-      const res = await fetch(`${API}/api/admin/cards`, { headers: { 'x-admin-auth': this.token } });
+      const res = await fetch(`${this.serverUrl}/api/admin/cards`, { headers: { 'x-admin-auth': this.token } });
       const d = await res.json();
       if (!d.cards?.length) { wrap.innerHTML = '<div class="empty"><span class="empty-icon">🃏</span>No cards yet</div>'; return; }
       wrap.innerHTML = '';
@@ -573,8 +641,8 @@ const App = {
     el.className = `upload-card ${u.status}`;
     el.id = `upload-${u.id}`;
     const date = new Date(u.timestamp).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
-    const profileImg = u.profilePic ? `<img class="uc-profile-pic" src="${API}${u.profilePic.url}" alt="" onclick="App.openModal(this.src)">` : '';
-    const imgs = u.files.map(f => `<img src="${API}/uploads/${f.filename}" alt="" onclick="App.openModal(this.src)">`).join('');
+    const profileImg = u.profilePic ? `<img class="uc-profile-pic" src="${this.serverUrl}${u.profilePic.url}" alt="" onclick="App.openModal(this.src)">` : '';
+    const imgs = u.files.map(f => `<img src="${this.serverUrl}/uploads/${f.filename}" alt="" onclick="App.openModal(this.src)">`).join('');
     let actions = '';
     if (isPending) {
       actions = `
@@ -604,7 +672,7 @@ const App = {
 
   async approve(uploadId) {
     try {
-      const res = await fetch(`${API}/api/admin/pending`, { headers: { 'x-admin-auth': this.token } });
+      const res = await fetch(`${this.serverUrl}/api/admin/pending`, { headers: { 'x-admin-auth': this.token } });
       const d = await res.json();
       const u = d.pending.find(x => x.id == uploadId);
       if (!u) { this.toast('Upload not found', 'error'); return; }
@@ -620,7 +688,7 @@ const App = {
   async reject(uploadId) {
     if (!confirm('Reject this upload? Files will be deleted.')) return;
     try {
-      await fetch(`${API}/api/admin/pending/${uploadId}/reject`, { method: 'POST', headers: { 'x-admin-auth': this.token } });
+      await fetch(`${this.serverUrl}/api/admin/pending/${uploadId}/reject`, { method: 'POST', headers: { 'x-admin-auth': this.token } });
       this.toast('Upload rejected', 'info');
       this.loadPending(); this.loadStats();
     } catch(e) { this.toast('Reject failed', 'error'); }
@@ -630,7 +698,7 @@ const App = {
     const btn = document.querySelector(`#upload-${uploadId} .btn-action`);
     if (btn) { btn.disabled = true; btn.textContent = 'Running...'; }
     try {
-      const res = await fetch(`${API}/api/admin/uploads/${uploadId}/generate`, { method: 'POST', headers: { 'x-admin-auth': this.token } });
+      const res = await fetch(`${this.serverUrl}/api/admin/uploads/${uploadId}/generate`, { method: 'POST', headers: { 'x-admin-auth': this.token } });
       const d = await res.json();
       if (d.success) { this.toast(`✅ AI generated ${d.card.rarity.toUpperCase()} card!`, 'success'); this.loadUploads(); this.loadCards(); this.loadStats(); }
       else { this.toast(d.error || 'AI failed', 'error'); }
@@ -641,7 +709,7 @@ const App = {
   async deleteUpload(uploadId) {
     if (!confirm('Permanently delete this upload and all its files?')) return;
     try {
-      await fetch(`${API}/api/admin/uploads/${uploadId}`, { method: 'DELETE', headers: { 'x-admin-auth': this.token } });
+      await fetch(`${this.serverUrl}/api/admin/uploads/${uploadId}`, { method: 'DELETE', headers: { 'x-admin-auth': this.token } });
       this.toast('Upload deleted', 'info'); this.loadUploads(); this.loadStats();
     } catch(e) { this.toast('Delete failed', 'error'); }
   },
@@ -649,21 +717,21 @@ const App = {
   async deleteCard(cardId) {
     if (!confirm('Delete this card?')) return;
     try {
-      await fetch(`${API}/api/admin/cards/${cardId}`, { method: 'DELETE', headers: { 'x-admin-auth': this.token } });
+      await fetch(`${this.serverUrl}/api/admin/cards/${cardId}`, { method: 'DELETE', headers: { 'x-admin-auth': this.token } });
       this.toast('Card deleted', 'info'); this.loadCards(); this.loadStats();
     } catch(e) { this.toast('Delete failed', 'error'); }
   },
 
   async viewUpload(uploadId) {
     try {
-      const res = await fetch(`${API}/api/admin/uploads/${uploadId}`, { headers: { 'x-admin-auth': this.token } });
+      const res = await fetch(`${this.serverUrl}/api/admin/uploads/${uploadId}`, { headers: { 'x-admin-auth': this.token } });
       const u = await res.json();
       let html = `<div style="background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius-md);padding:1rem;margin-bottom:1rem">
         <h3 style="font-weight:600;margin-bottom:0.5rem">Upload #${u.id}</h3>
         <p style="font-size:0.8rem;color:var(--text2);margin-bottom:0.75rem">${u.username || 'Anonymous'} · ${u.files.length} files · ${u.status}</p>
         <div style="display:flex;gap:0.5rem;flex-wrap:wrap">`;
       u.files.forEach(f => {
-        html += `<img src="${API}/uploads/${f.filename}" style="width:100px;height:100px;object-fit:cover;border-radius:var(--radius-sm);border:1px solid var(--border);cursor:pointer" onclick="App.openModal(this.src)">`;
+        html += `<img src="${this.serverUrl}/uploads/${f.filename}" style="width:100px;height:100px;object-fit:cover;border-radius:var(--radius-sm);border:1px solid var(--border);cursor:pointer" onclick="App.openModal(this.src)">`;
       });
       html += `</div></div>`;
       const wrap = document.getElementById('uploadsList');
@@ -698,7 +766,7 @@ const App = {
     };
     if (this.pendingUploadId) {
       try {
-        const res = await fetch(`${API}/api/admin/pending/${this.pendingUploadId}/approve`, {
+        const res = await fetch(`${this.serverUrl}/api/admin/pending/${this.pendingUploadId}/approve`, {
           method: 'POST', headers: { 'Content-Type': 'application/json', 'x-admin-auth': this.token },
           body: JSON.stringify({ cardData: card })
         });
@@ -716,7 +784,7 @@ const App = {
       return;
     }
     try {
-      const res = await fetch(`${API}/api/admin/cards`, {
+      const res = await fetch(`${this.serverUrl}/api/admin/cards`, {
         method: 'POST', headers: { 'Content-Type': 'application/json', 'x-admin-auth': this.token },
         body: JSON.stringify(card)
       });
