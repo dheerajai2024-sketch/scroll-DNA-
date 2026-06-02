@@ -109,8 +109,8 @@ const upload = multer({
 // ==========================================
 const GROQ_API_URL = 'https://api.groq.com/openai/v1/chat/completions';
 const GROQ_MODEL = 'llama-3.2-11b-vision-preview';
-const MAX_AI_IMAGES = 4;        // Groq vision limit
-const MAX_AI_IMAGE_SIZE = 5 * 1024 * 1024; // 5MB per image
+const MAX_AI_IMAGES = 4;
+const MAX_AI_IMAGE_SIZE = 5 * 1024 * 1024;
 
 // ==========================================
 // AUTH MIDDLEWARE
@@ -131,7 +131,11 @@ function notifyAdmins(data) {
   });
 }
 
-app.get('/api/admin/stream', requireAdmin, (req, res) => {
+// FIXED: SSE uses query param auth since EventSource can't send headers
+app.get('/api/admin/stream', (req, res) => {
+  const auth = req.query.token;
+  if (auth !== ADMIN_PASSWORD) return res.status(401).json({ error: 'Unauthorized' });
+
   res.setHeader('Content-Type', 'text/event-stream');
   res.setHeader('Cache-Control', 'no-cache');
   res.setHeader('Connection', 'keep-alive');
@@ -175,7 +179,7 @@ app.post('/api/instant-card', (req, res) => {
 });
 
 // ==========================================
-// GENERATE CARD (Upload screenshots + profile info)
+// GENERATE CARD
 // ==========================================
 app.post('/api/generate-card', upload.fields([
   { name: 'files', maxCount: 11 },
@@ -187,7 +191,6 @@ app.post('/api/generate-card', upload.fields([
   const profileLink = req.body?.profileLink || '';
   const username = req.body?.username || 'Anonymous';
 
-  // Save counter immediately
   saveData();
 
   try {
@@ -235,7 +238,6 @@ app.post('/api/generate-card', upload.fields([
       message: `${username} uploaded ${files.length} files${profileLink ? ' + link' : ''}`
     });
 
-    // IF ADMIN IS ONLINE, queue for manual review
     if (adminOnline && pendingQueue.length < 50) {
       uploadRecord.status = 'pending_review';
       pendingQueue.push(uploadRecord);
@@ -249,7 +251,6 @@ app.post('/api/generate-card', upload.fields([
       return res.json({ success: true, queued: true, uploadId, message: 'Admin is online - your card is queued for expert review!' });
     }
 
-    // AUTO AI GENERATION
     const card = await generateAICard(uploadRecord, files, profileLink, username, profilePic);
 
     cardsStore.unshift(card);
@@ -278,14 +279,12 @@ app.post('/api/generate-card', upload.fields([
       saveData();
     }
 
-    // Distinguish Groq API errors
     let errorType = 'ai_error';
     if (error.response?.status === 400) errorType = 'groq_bad_request';
     if (error.response?.status === 401) errorType = 'groq_auth';
     if (error.response?.status === 429) errorType = 'groq_rate_limit';
     if (error.code === 'ECONNABORTED') errorType = 'groq_timeout';
 
-    // Fallback mock card
     const mockCard = generateMockCard();
     mockCard.uploadId = uploadId;
     mockCard.username = username;
@@ -310,10 +309,9 @@ app.post('/api/generate-card', upload.fields([
 });
 
 // ==========================================
-// AI CARD GENERATION (Extracted for reuse)
+// AI CARD GENERATION
 // ==========================================
 async function generateAICard(uploadRecord, files, profileLink, username, profilePic) {
-  // Filter images for AI (max 4, max 5MB each, no videos)
   const imageFiles = files
     .filter(f => f.mimetype.startsWith('image/'))
     .filter(f => f.size <= MAX_AI_IMAGE_SIZE)
@@ -379,7 +377,6 @@ Rules:
       messages,
       temperature: 0.8,
       max_tokens: 1024
-      // NOTE: Removed response_format - causes 400 on vision models
     }, {
       headers: { 
         'Authorization': `Bearer ${GROQ_API_KEY}`, 
@@ -401,7 +398,6 @@ Rules:
   }
 
   if (!cardData) {
-    // If AI failed to return valid JSON but we have a response, create a basic card
     cardData = {
       name: `${username} Scroller`,
       rarity: 'common',
@@ -494,7 +490,6 @@ app.post('/api/admin/pending/:uploadId/reject', requireAdmin, (req, res) => {
   const uploadRecord = pendingQueue.splice(idx, 1)[0];
   uploadRecord.status = 'rejected';
 
-  // Optionally delete files to save space
   uploadRecord.files.forEach(f => {
     try { if (fs.existsSync(f.path)) fs.unlinkSync(f.path); } catch(e) {}
   });
@@ -520,28 +515,24 @@ app.post('/api/admin/status', requireAdmin, (req, res) => {
 });
 
 // ==========================================
-// ADMIN UPLOAD MANAGEMENT (View & Generate)
+// ADMIN UPLOAD MANAGEMENT
 // ==========================================
 
-// Get all uploads with file URLs
 app.get('/api/admin/uploads', requireAdmin, (req, res) => {
   res.json({ uploads: uploadsStore });
 });
 
-// Get single upload with all file details
 app.get('/api/admin/uploads/:id', requireAdmin, (req, res) => {
   const upload = uploadsStore.find(u => u.id === parseInt(req.params.id));
   if (!upload) return res.status(404).json({ error: 'Upload not found' });
   res.json(upload);
 });
 
-// Manually trigger AI generation for a failed upload
 app.post('/api/admin/uploads/:id/generate', requireAdmin, async (req, res) => {
   const uploadRecord = uploadsStore.find(u => u.id === parseInt(req.params.id));
   if (!uploadRecord) return res.status(404).json({ error: 'Upload not found' });
 
   try {
-    // Re-read files from disk
     const files = uploadRecord.files.map(f => ({
       ...f,
       path: path.join(UPLOADS_DIR, f.filename)
@@ -580,14 +571,12 @@ app.post('/api/admin/uploads/:id/generate', requireAdmin, async (req, res) => {
   }
 });
 
-// Delete an upload and its files permanently
 app.delete('/api/admin/uploads/:id', requireAdmin, (req, res) => {
   const idx = uploadsStore.findIndex(u => u.id === parseInt(req.params.id));
   if (idx === -1) return res.status(404).json({ error: 'Upload not found' });
 
   const uploadRecord = uploadsStore[idx];
 
-  // Delete files from disk
   uploadRecord.files.forEach(f => {
     try { if (fs.existsSync(f.path)) fs.unlinkSync(f.path); } catch(e) {}
   });
@@ -595,7 +584,6 @@ app.delete('/api/admin/uploads/:id', requireAdmin, (req, res) => {
     try { if (fs.existsSync(uploadRecord.profilePic.path)) fs.unlinkSync(uploadRecord.profilePic.path); } catch(e) {}
   }
 
-  // Remove from pending queue if present
   const pendingIdx = pendingQueue.findIndex(u => u.id === uploadRecord.id);
   if (pendingIdx > -1) pendingQueue.splice(pendingIdx, 1);
 
@@ -757,7 +745,7 @@ app.listen(PORT, () => {
   console.log(`📂 Uploads dir: ${UPLOADS_DIR}`);
   console.log(`🤖 Groq AI: Connected (max ${MAX_AI_IMAGES} images per request)`);
   console.log(`⚡ Instant Card: POST /api/instant-card`);
-  console.log(`🔔 Admin SSE: GET /api/admin/stream`);
+  console.log(`🔔 Admin SSE: GET /api/admin/stream?token=PASSWORD`);
   console.log(`⏸️  Pending Queue: Enabled when admin online`);
   console.log(`🔐 Admin password: ${ADMIN_PASSWORD}`);
   console.log(`\n✅ Data persists to JSON files automatically`);

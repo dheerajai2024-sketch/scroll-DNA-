@@ -23,7 +23,6 @@
     button { cursor: pointer; border: none; background: none; color: inherit; }
     ::-webkit-scrollbar { width: 4px; } ::-webkit-scrollbar-track { background: var(--bg2); } ::-webkit-scrollbar-thumb { background: var(--surface); border-radius: 99px; }
 
-    /* ── App Shell ── */
     .app { max-width: 1100px; margin: 0 auto; padding: 0; min-height: 100vh; display: flex; flex-direction: column; }
     .app-header {
       position: sticky; top: 0; z-index: 100;
@@ -50,7 +49,6 @@
     }
     .badge.hidden { display: none; }
 
-    /* ── Login ── */
     .login-screen {
       flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;
       padding: 2rem; text-align: center;
@@ -76,7 +74,6 @@
     .btn-primary:active { transform: scale(0.98); }
     .btn-primary:disabled { opacity: 0.5; }
 
-    /* ── Dashboard ── */
     .dashboard { flex: 1; padding: 1rem; }
     .dash-header {
       display: flex; align-items: center; justify-content: space-between;
@@ -91,7 +88,6 @@
     .status-pill.offline { background: var(--bg3); border-color: var(--border); color: var(--text2); }
     .status-dot { width: 8px; height: 8px; border-radius: 50%; background: currentColor; }
 
-    /* Stats */
     .stats-grid {
       display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.75rem; margin-bottom: 1.25rem;
     }
@@ -104,7 +100,6 @@
     .stat-num { font-family: var(--font-display); font-size: 1.6rem; font-weight: 800; display: block; }
     .stat-lbl { font-size: 0.72rem; color: var(--text2); margin-top: 0.2rem; display: block; }
 
-    /* Tabs */
     .tab-bar {
       display: flex; gap: 0.4rem; overflow-x: auto; padding-bottom: 0.5rem;
       margin-bottom: 1rem; scrollbar-width: none;
@@ -123,16 +118,13 @@
       min-width: 18px; height: 18px; border-radius: 99px; line-height: 18px; text-align: center; padding: 0 4px;
     }
 
-    /* Panels */
     .panel { display: none; animation: fadeIn 0.25s ease; }
     .panel.active { display: block; }
     @keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
 
-    /* Empty state */
     .empty { text-align: center; padding: 3rem 1rem; color: var(--text3); }
     .empty-icon { font-size: 2.5rem; margin-bottom: 0.75rem; display: block; }
 
-    /* ── Upload Cards ── */
     .upload-card {
       background: var(--bg2); border: 1px solid var(--border); border-radius: var(--radius-md);
       margin-bottom: 0.75rem; overflow: hidden; transition: border-color 0.2s;
@@ -186,7 +178,6 @@
     .btn-delete { background: rgba(239,68,68,0.08); border: 1px solid rgba(239,68,68,0.2); color: var(--red); }
     .btn-delete:active { background: rgba(239,68,68,0.15); }
 
-    /* ── Card List ── */
     .card-item {
       background: var(--bg2); border: 1px solid var(--border); border-radius: var(--radius-md);
       padding: 1rem; display: flex; align-items: center; gap: 0.875rem; margin-bottom: 0.75rem;
@@ -208,7 +199,6 @@
     .src-mock { background: rgba(107,114,128,0.1); color: var(--text2); }
     .src-instant { background: rgba(34,197,94,0.1); color: var(--green); }
 
-    /* ── Create Card Form ── */
     .form-card {
       background: var(--bg2); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 1.5rem;
     }
@@ -225,7 +215,6 @@
     .stats-grid-form { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; }
     @media (min-width: 640px) { .stats-grid-form { grid-template-columns: repeat(3, 1fr); } }
 
-    /* ── Toast ── */
     .toast-wrap {
       position: fixed; bottom: 1rem; left: 1rem; right: 1rem; z-index: 1000;
       display: flex; flex-direction: column; gap: 0.5rem; pointer-events: none;
@@ -242,7 +231,6 @@
     .toast.error { background: linear-gradient(135deg, #dc2626, #ef4444); }
     .toast.notify { background: linear-gradient(135deg, var(--primary), var(--accent)); }
 
-    /* ── Image Modal ── */
     .img-modal {
       position: fixed; inset: 0; z-index: 200; background: rgba(0,0,0,0.92);
       display: flex; align-items: center; justify-content: center; padding: 1rem;
@@ -256,25 +244,18 @@
       align-items: center; justify-content: center; font-size: 1.5rem; color: white;
     }
 
-    /* ── Loading ── */
     .skeleton { background: linear-gradient(90deg, var(--bg3) 25%, var(--bg4) 50%, var(--bg3) 75%); background-size: 200% 100%; animation: shimmer 1.2s infinite; border-radius: var(--radius-sm); }
     @keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
     .loading-dots::after { content: ''; animation: dots 1.4s infinite; }
     @keyframes dots { 0%,20% { content: '.'; } 40% { content: '..'; } 60%,100% { content: '...'; } }
 
-    /* ── Footer ── */
     .app-footer { padding: 1rem; text-align: center; font-size: 0.72rem; color: var(--text3); border-top: 1px solid var(--border); margin-top: auto; }
-
-    /* ── Animations ── */
-    @keyframes pulse-ring { 0% { transform: scale(0.8); opacity: 1; } 100% { transform: scale(1.3); opacity: 0; } }
-    .pulse-ring { position: absolute; inset: -4px; border-radius: 50%; border: 2px solid var(--green); animation: pulse-ring 2s ease-out infinite; pointer-events: none; }
   </style>
 <base target="_blank">
 </head>
 <body>
 <div class="app" id="app">
 
-  <!-- Header -->
   <header class="app-header" id="appHeader" style="display:none">
     <h1><span class="logo">🧬</span> DNA Lab</h1>
     <div class="header-actions">
@@ -287,7 +268,6 @@
     </div>
   </header>
 
-  <!-- Login Screen -->
   <div class="login-screen" id="loginScreen">
     <div class="login-card">
       <div style="font-size:3rem;margin-bottom:0.5rem">🧬</div>
@@ -299,7 +279,6 @@
     <p style="margin-top:1.5rem;color:var(--text3);font-size:0.8rem">Scroll DNA · AI-Powered Trading Cards</p>
   </div>
 
-  <!-- Dashboard -->
   <div class="dashboard" id="dashboard" style="display:none">
     <div class="dash-header">
       <h2>Control Center</h2>
@@ -320,33 +299,14 @@
       <button class="tab-btn active" onclick="App.tab('pending')" id="tab-pending-btn">
         ⏸ Pending<span class="tab-badge hidden" id="pendingBadge">0</span>
       </button>
-      <button class="tab-btn" onclick="App.tab('uploads')" id="tab-uploads-btn">
-        📤 Uploads
-      </button>
-      <button class="tab-btn" onclick="App.tab('cards')" id="tab-cards-btn">
-        🎴 Cards
-      </button>
-      <button class="tab-btn" onclick="App.tab('create')" id="tab-create-btn">
-        ✍️ Create
-      </button>
+      <button class="tab-btn" onclick="App.tab('uploads')" id="tab-uploads-btn">📤 Uploads</button>
+      <button class="tab-btn" onclick="App.tab('cards')" id="tab-cards-btn">🎴 Cards</button>
+      <button class="tab-btn" onclick="App.tab('create')" id="tab-create-btn">✍️ Create</button>
     </div>
 
-    <!-- Pending Panel -->
-    <div class="panel active" id="panel-pending">
-      <div id="pendingList"></div>
-    </div>
-
-    <!-- Uploads Panel -->
-    <div class="panel" id="panel-uploads">
-      <div id="uploadsList"></div>
-    </div>
-
-    <!-- Cards Panel -->
-    <div class="panel" id="panel-cards">
-      <div id="cardsList"></div>
-    </div>
-
-    <!-- Create Panel -->
+    <div class="panel active" id="panel-pending"><div id="pendingList"></div></div>
+    <div class="panel" id="panel-uploads"><div id="uploadsList"></div></div>
+    <div class="panel" id="panel-cards"><div id="cardsList"></div></div>
     <div class="panel" id="panel-create">
       <div class="form-card">
         <div class="field-row">
@@ -390,13 +350,11 @@
   </footer>
 </div>
 
-<!-- Image Modal -->
 <div class="img-modal" id="imgModal" onclick="App.closeModal()">
   <button class="close-x">×</button>
   <img id="modalImg" src="" alt="">
 </div>
 
-<!-- Toast Container -->
 <div class="toast-wrap" id="toastWrap"></div>
 
 <script>
@@ -421,7 +379,6 @@ const App = {
     this.updateNotifBtn();
   },
 
-  // ── Auth ──
   async login() {
     const pw = document.getElementById('pwInput').value;
     const btn = document.getElementById('loginBtn');
@@ -442,7 +399,7 @@ const App = {
       } else {
         this.toast('Wrong password', 'error');
       }
-    } catch(e) { this.toast('Server offline', 'error'); }
+    } catch(e) { this.toast('Server offline — check if backend is running', 'error', 5000); }
     btn.disabled = false; btn.textContent = 'Enter Lab';
   },
 
@@ -466,11 +423,13 @@ const App = {
     document.getElementById('appFooter').style.display = 'block';
   },
 
-  // ── SSE / Real-time ──
+  // ── SSE with query param auth (EventSource can't send headers) ──
   connectSSE() {
     if (this.sse) this.sse.close();
+    if (!this.token) return;
     try {
-      this.sse = new EventSource(`${API}/api/admin/stream`);
+      // FIX: Pass token as query parameter since EventSource can't send headers
+      this.sse = new EventSource(`${API}/api/admin/stream?token=${encodeURIComponent(this.token)}`);
       this.sse.onopen = () => { document.getElementById('connStatus').textContent = '● Live'; };
       this.sse.onmessage = e => {
         try {
@@ -484,21 +443,22 @@ const App = {
         if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
         this.reconnectTimer = setTimeout(() => this.connectSSE(), 4000);
       };
-    } catch(e) {}
+    } catch(e) {
+      document.getElementById('connStatus').textContent = '○ Error';
+    }
   },
 
   handleSSE(d) {
     this.playNotify();
     this.toast(d.message, 'notify', 4000);
     if (this.notif && Notification.permission === 'granted') {
-      new Notification('Scroll DNA Lab', { body: d.message, icon: '🧬' });
+      new Notification('Scroll DNA Lab', { body: d.message });
     }
     if (['new_upload','pending_added','rejected'].includes(d.type)) { this.loadPending(); this.loadStats(); }
     if (['card_generated','manual_approved','fallback_used'].includes(d.type)) { this.loadCards(); this.loadStats(); this.loadUploads(); }
     if (['upload_deleted'].includes(d.type)) { this.loadUploads(); this.loadStats(); }
   },
 
-  // ── Online Toggle ──
   async toggleOnline() {
     const pill = document.getElementById('statusPill');
     const dot = document.getElementById('statusDot');
@@ -521,7 +481,6 @@ const App = {
     } catch(e) {}
   },
 
-  // ── Tabs ──
   tab(name) {
     this.activeTab = name;
     document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
@@ -533,7 +492,6 @@ const App = {
     if (name === 'cards') this.loadCards();
   },
 
-  // ── Data Loading ──
   async loadAll() {
     await this.loadStats();
     if (this.activeTab === 'pending') this.loadPending();
@@ -610,29 +568,23 @@ const App = {
     } catch(e) { wrap.innerHTML = '<div class="empty"><span class="empty-icon">⚠️</span>Error loading cards</div>'; }
   },
 
-  // ── Build Upload Card ──
   buildUploadCard(u, isPending) {
     const el = document.createElement('div');
     el.className = `upload-card ${u.status}`;
     el.id = `upload-${u.id}`;
-
     const date = new Date(u.timestamp).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
     const profileImg = u.profilePic ? `<img class="uc-profile-pic" src="${API}${u.profilePic.url}" alt="" onclick="App.openModal(this.src)">` : '';
     const imgs = u.files.map(f => `<img src="${API}/uploads/${f.filename}" alt="" onclick="App.openModal(this.src)">`).join('');
-
     let actions = '';
     if (isPending) {
       actions = `
         <button class="btn-sm btn-approve" onclick="App.approve(${u.id})">✨ Create Card</button>
         <button class="btn-sm btn-reject" onclick="App.reject(${u.id})">❌ Reject</button>`;
     } else {
-      if (u.status === 'error') {
-        actions += `<button class="btn-sm btn-action" onclick="App.retryAI(${u.id})">🤖 Retry AI</button>`;
-      }
+      if (u.status === 'error') actions += `<button class="btn-sm btn-action" onclick="App.retryAI(${u.id})">🤖 Retry AI</button>`;
       actions += `<button class="btn-sm btn-action" onclick="App.viewUpload(${u.id})">👁 View</button>`;
       actions += `<button class="btn-sm btn-delete" onclick="App.deleteUpload(${u.id})">🗑 Delete</button>`;
     }
-
     el.innerHTML = `
       <div class="uc-header">
         <div>
@@ -650,14 +602,12 @@ const App = {
     return el;
   },
 
-  // ── Actions ──
   async approve(uploadId) {
     try {
       const res = await fetch(`${API}/api/admin/pending`, { headers: { 'x-admin-auth': this.token } });
       const d = await res.json();
       const u = d.pending.find(x => x.id == uploadId);
       if (!u) { this.toast('Upload not found', 'error'); return; }
-
       this.pendingUploadId = uploadId;
       this.tab('create');
       document.getElementById('c-name').value = u.username ? `${u.username}'s Card` : 'Custom Card';
@@ -746,8 +696,6 @@ const App = {
         authenticity: parseInt(document.getElementById('s-authenticity').value) || 70,
       }
     };
-
-    // If approving pending upload
     if (this.pendingUploadId) {
       try {
         const res = await fetch(`${API}/api/admin/pending/${this.pendingUploadId}/approve`, {
@@ -767,8 +715,6 @@ const App = {
       } catch(e) { this.toast('Server error', 'error'); }
       return;
     }
-
-    // Normal create
     try {
       const res = await fetch(`${API}/api/admin/cards`, {
         method: 'POST', headers: { 'Content-Type': 'application/json', 'x-admin-auth': this.token },
@@ -780,11 +726,9 @@ const App = {
     } catch(e) { this.toast('Server error', 'error'); }
   },
 
-  // ── Modal ──
   openModal(src) { document.getElementById('modalImg').src = src; document.getElementById('imgModal').classList.add('open'); },
   closeModal() { document.getElementById('imgModal').classList.remove('open'); },
 
-  // ── Settings ──
   toggleSound() { this.sound = !this.sound; localStorage.setItem('sdna_admin_sound', this.sound); this.updateSoundBtn(); this.toast(this.sound ? 'Sound on' : 'Sound off', 'info'); },
   updateSoundBtn() { const btn = document.getElementById('soundBtn'); if (btn) btn.textContent = this.sound ? '🔊' : '🔇'; },
 
@@ -795,7 +739,6 @@ const App = {
   },
   updateNotifBtn() { const btn = document.getElementById('notifBtn'); if (btn) btn.classList.toggle('on', this.notif); },
 
-  // ── Audio ──
   playNotify() {
     if (!this.sound) return;
     try {
@@ -814,7 +757,6 @@ const App = {
     } catch(e) {}
   },
 
-  // ── Toast ──
   toast(msg, type='info', duration=3500) {
     const wrap = document.getElementById('toastWrap');
     const el = document.createElement('div');
@@ -835,10 +777,7 @@ const App = {
   }
 };
 
-// Close modal on Escape
 document.addEventListener('keydown', e => { if (e.key === 'Escape') App.closeModal(); });
-
-// Boot
 App.init();
 </script>
 </body>
