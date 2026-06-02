@@ -1,0 +1,845 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="theme-color" content="#0a0a0f">
+  <title>Scroll DNA — Admin Lab</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #0a0a0f; --bg2: #111118; --bg3: #16161f; --bg4: #1c1c28; --surface: #20202e;
+      --border: rgba(255,255,255,0.07); --border2: rgba(255,255,255,0.13);
+      --text: #f0eff8; --text2: #9e9db5; --text3: #615f7a;
+      --primary: #7c6aff; --primary2: #5b4de0; --accent: #ff6b9d; --gold: #f5a623;
+      --cyan: #00d4ff; --green: #22c55e; --red: #ef4444; --orange: #f97316;
+      --radius-sm: 8px; --radius-md: 14px; --radius-lg: 20px;
+      --font-display: 'Syne', sans-serif; --font-body: 'DM Sans', sans-serif;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+    html, body { font-family: var(--font-body); background: var(--bg); color: var(--text); min-height: 100vh; overflow-x: hidden; font-size: 16px; line-height: 1.5; }
+    button, input, select, textarea { font-family: inherit; font-size: inherit; }
+    button { cursor: pointer; border: none; background: none; color: inherit; }
+    ::-webkit-scrollbar { width: 4px; } ::-webkit-scrollbar-track { background: var(--bg2); } ::-webkit-scrollbar-thumb { background: var(--surface); border-radius: 99px; }
+
+    /* ── App Shell ── */
+    .app { max-width: 1100px; margin: 0 auto; padding: 0; min-height: 100vh; display: flex; flex-direction: column; }
+    .app-header {
+      position: sticky; top: 0; z-index: 100;
+      background: rgba(10,10,15,0.92); backdrop-filter: blur(20px);
+      border-bottom: 1px solid var(--border); padding: 0.75rem 1rem;
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .app-header h1 { font-family: var(--font-display); font-size: 1.1rem; font-weight: 700; display: flex; align-items: center; gap: 0.4rem; }
+    .app-header .logo { font-size: 1.3rem; }
+    .header-actions { display: flex; align-items: center; gap: 0.5rem; }
+    .icon-btn {
+      width: 38px; height: 38px; border-radius: 50%;
+      background: var(--bg3); border: 1px solid var(--border);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.1rem; transition: all 0.2s; position: relative;
+    }
+    .icon-btn:active { transform: scale(0.92); }
+    .icon-btn.on { border-color: var(--green); color: var(--green); }
+    .badge {
+      position: absolute; top: -3px; right: -3px;
+      background: var(--red); color: white; font-size: 0.6rem; font-weight: 700;
+      min-width: 18px; height: 18px; border-radius: 99px;
+      display: flex; align-items: center; justify-content: center; padding: 0 4px;
+    }
+    .badge.hidden { display: none; }
+
+    /* ── Login ── */
+    .login-screen {
+      flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;
+      padding: 2rem; text-align: center;
+    }
+    .login-card {
+      background: var(--bg2); border: 1px solid var(--border);
+      border-radius: var(--radius-lg); padding: 2.5rem 2rem; width: 100%; max-width: 380px;
+    }
+    .login-card h2 { font-family: var(--font-display); font-size: 1.5rem; font-weight: 700; margin-bottom: 0.5rem; }
+    .login-card p { color: var(--text2); font-size: 0.85rem; margin-bottom: 1.5rem; }
+    .login-card input {
+      width: 100%; padding: 0.9rem 1rem; background: var(--bg3); border: 1.5px solid var(--border);
+      border-radius: var(--radius-sm); color: var(--text); font-size: 1rem;
+      margin-bottom: 1rem; transition: border-color 0.2s;
+    }
+    .login-card input:focus { outline: none; border-color: var(--primary); }
+    .btn-primary {
+      width: 100%; padding: 0.9rem; border-radius: var(--radius-sm);
+      background: linear-gradient(135deg, var(--primary), var(--accent));
+      color: white; font-weight: 600; font-size: 0.95rem;
+      transition: opacity 0.2s, transform 0.2s;
+    }
+    .btn-primary:active { transform: scale(0.98); }
+    .btn-primary:disabled { opacity: 0.5; }
+
+    /* ── Dashboard ── */
+    .dashboard { flex: 1; padding: 1rem; }
+    .dash-header {
+      display: flex; align-items: center; justify-content: space-between;
+      margin-bottom: 1rem; flex-wrap: wrap; gap: 0.5rem;
+    }
+    .dash-header h2 { font-family: var(--font-display); font-size: 1.1rem; font-weight: 700; }
+    .status-pill {
+      padding: 0.35rem 0.9rem; border-radius: 99px; font-size: 0.78rem; font-weight: 600;
+      border: 1px solid; display: flex; align-items: center; gap: 0.35rem;
+    }
+    .status-pill.online { background: rgba(34,197,94,0.1); border-color: rgba(34,197,94,0.3); color: var(--green); }
+    .status-pill.offline { background: var(--bg3); border-color: var(--border); color: var(--text2); }
+    .status-dot { width: 8px; height: 8px; border-radius: 50%; background: currentColor; }
+
+    /* Stats */
+    .stats-grid {
+      display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.75rem; margin-bottom: 1.25rem;
+    }
+    @media (min-width: 640px) { .stats-grid { grid-template-columns: repeat(4, 1fr); } }
+    .stat-box {
+      background: var(--bg2); border: 1px solid var(--border); border-radius: var(--radius-md);
+      padding: 1rem; text-align: center; transition: border-color 0.2s;
+    }
+    .stat-box:active { border-color: var(--border2); }
+    .stat-num { font-family: var(--font-display); font-size: 1.6rem; font-weight: 800; display: block; }
+    .stat-lbl { font-size: 0.72rem; color: var(--text2); margin-top: 0.2rem; display: block; }
+
+    /* Tabs */
+    .tab-bar {
+      display: flex; gap: 0.4rem; overflow-x: auto; padding-bottom: 0.5rem;
+      margin-bottom: 1rem; scrollbar-width: none;
+    }
+    .tab-bar::-webkit-scrollbar { display: none; }
+    .tab-btn {
+      flex-shrink: 0; padding: 0.5rem 1rem; border-radius: var(--radius-sm);
+      background: var(--bg3); border: 1px solid var(--border); color: var(--text2);
+      font-size: 0.82rem; font-weight: 600; white-space: nowrap;
+      transition: all 0.2s;
+    }
+    .tab-btn.active { background: var(--primary); border-color: var(--primary); color: white; }
+    .tab-btn .tab-badge {
+      display: inline-block; margin-left: 0.3rem;
+      background: var(--red); color: white; font-size: 0.65rem;
+      min-width: 18px; height: 18px; border-radius: 99px; line-height: 18px; text-align: center; padding: 0 4px;
+    }
+
+    /* Panels */
+    .panel { display: none; animation: fadeIn 0.25s ease; }
+    .panel.active { display: block; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+
+    /* Empty state */
+    .empty { text-align: center; padding: 3rem 1rem; color: var(--text3); }
+    .empty-icon { font-size: 2.5rem; margin-bottom: 0.75rem; display: block; }
+
+    /* ── Upload Cards ── */
+    .upload-card {
+      background: var(--bg2); border: 1px solid var(--border); border-radius: var(--radius-md);
+      margin-bottom: 0.75rem; overflow: hidden; transition: border-color 0.2s;
+    }
+    .upload-card:hover { border-color: var(--border2); }
+    .upload-card.error { border-color: rgba(239,68,68,0.3); }
+    .upload-card.completed { border-color: rgba(34,197,94,0.2); }
+    .upload-card.pending { border-color: rgba(245,166,35,0.25); }
+    .uc-header {
+      padding: 1rem; display: flex; align-items: flex-start; justify-content: space-between; gap: 0.75rem;
+    }
+    .uc-user { font-weight: 600; font-size: 0.9rem; margin-bottom: 0.2rem; }
+    .uc-meta { font-size: 0.75rem; color: var(--text2); line-height: 1.6; }
+    .uc-meta a { color: var(--primary); word-break: break-all; }
+    .uc-status {
+      font-size: 0.7rem; font-weight: 700; padding: 0.2rem 0.6rem; border-radius: 4px;
+      text-transform: uppercase; letter-spacing: 0.05em; flex-shrink: 0;
+    }
+    .uc-status.pending { background: rgba(245,166,35,0.1); color: var(--gold); }
+    .uc-status.processing { background: rgba(0,212,255,0.1); color: var(--cyan); }
+    .uc-status.completed { background: rgba(34,197,94,0.1); color: var(--green); }
+    .uc-status.error { background: rgba(239,68,68,0.1); color: var(--red); }
+    .uc-status.rejected { background: rgba(107,114,128,0.1); color: var(--text3); }
+
+    .uc-error { padding: 0 1rem 0.75rem; font-size: 0.78rem; color: var(--red); }
+    .uc-gallery {
+      display: flex; gap: 0.4rem; padding: 0 1rem 0.75rem; overflow-x: auto; scrollbar-width: none;
+    }
+    .uc-gallery::-webkit-scrollbar { display: none; }
+    .uc-gallery img {
+      width: 72px; height: 72px; object-fit: cover; border-radius: var(--radius-sm);
+      border: 1px solid var(--border); flex-shrink: 0; background: var(--bg3);
+    }
+    .uc-profile-pic {
+      width: 72px; height: 72px; object-fit: cover; border-radius: 50%;
+      border: 2px solid var(--primary); flex-shrink: 0; background: var(--bg3);
+    }
+    .uc-actions {
+      display: flex; gap: 0.5rem; padding: 0 1rem 1rem; flex-wrap: wrap;
+    }
+    .btn-sm {
+      padding: 0.45rem 0.9rem; border-radius: var(--radius-sm); font-size: 0.78rem; font-weight: 600;
+      transition: all 0.2s; white-space: nowrap;
+    }
+    .btn-approve { background: linear-gradient(135deg, var(--primary), var(--accent)); color: white; }
+    .btn-approve:active { opacity: 0.85; }
+    .btn-reject { background: rgba(239,68,68,0.1); border: 1px solid rgba(239,68,68,0.25); color: var(--red); }
+    .btn-reject:active { background: rgba(239,68,68,0.2); }
+    .btn-action { background: var(--bg3); border: 1px solid var(--border); color: var(--text2); }
+    .btn-action:active { border-color: var(--border2); color: var(--text); }
+    .btn-delete { background: rgba(239,68,68,0.08); border: 1px solid rgba(239,68,68,0.2); color: var(--red); }
+    .btn-delete:active { background: rgba(239,68,68,0.15); }
+
+    /* ── Card List ── */
+    .card-item {
+      background: var(--bg2); border: 1px solid var(--border); border-radius: var(--radius-md);
+      padding: 1rem; display: flex; align-items: center; gap: 0.875rem; margin-bottom: 0.75rem;
+    }
+    .card-swatch {
+      width: 44px; height: 56px; border-radius: var(--radius-sm); flex-shrink: 0;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 0.55rem; font-weight: 800; color: white; text-shadow: 0 1px 2px rgba(0,0,0,0.5);
+    }
+    .card-info { flex: 1; min-width: 0; }
+    .card-info h4 { font-weight: 600; font-size: 0.9rem; margin-bottom: 0.15rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .card-info p { font-size: 0.75rem; color: var(--text2); }
+    .src-tag {
+      display: inline-block; font-size: 0.6rem; font-weight: 700; padding: 0.1rem 0.4rem;
+      border-radius: 4px; margin-left: 0.3rem; letter-spacing: 0.05em;
+    }
+    .src-ai { background: rgba(0,212,255,0.1); color: var(--cyan); }
+    .src-manual { background: rgba(124,106,255,0.1); color: var(--primary); }
+    .src-mock { background: rgba(107,114,128,0.1); color: var(--text2); }
+    .src-instant { background: rgba(34,197,94,0.1); color: var(--green); }
+
+    /* ── Create Card Form ── */
+    .form-card {
+      background: var(--bg2); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 1.5rem;
+    }
+    .field { margin-bottom: 1rem; }
+    .field label { display: block; font-size: 0.78rem; font-weight: 600; color: var(--text2); margin-bottom: 0.35rem; letter-spacing: 0.02em; }
+    .field input, .field select, .field textarea {
+      width: 100%; padding: 0.75rem 1rem; background: var(--bg3); border: 1.5px solid var(--border);
+      border-radius: var(--radius-sm); color: var(--text); transition: border-color 0.2s;
+    }
+    .field input:focus, .field select:focus, .field textarea:focus { outline: none; border-color: var(--primary); }
+    .field textarea { resize: vertical; min-height: 80px; }
+    .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; }
+    @media (min-width: 640px) { .field-row { grid-template-columns: 1fr 1fr 1fr; } }
+    .stats-grid-form { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; }
+    @media (min-width: 640px) { .stats-grid-form { grid-template-columns: repeat(3, 1fr); } }
+
+    /* ── Toast ── */
+    .toast-wrap {
+      position: fixed; bottom: 1rem; left: 1rem; right: 1rem; z-index: 1000;
+      display: flex; flex-direction: column; gap: 0.5rem; pointer-events: none;
+    }
+    .toast {
+      padding: 0.85rem 1.25rem; border-radius: var(--radius-md); font-size: 0.85rem; font-weight: 600;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.5); color: white;
+      transform: translateY(20px); opacity: 0; transition: all 0.35s cubic-bezier(0.175,0.885,0.32,1.275);
+      pointer-events: auto; word-break: break-word;
+    }
+    .toast.show { transform: none; opacity: 1; }
+    .toast.info { background: linear-gradient(135deg, #4f46e5, #6366f1); }
+    .toast.success { background: linear-gradient(135deg, #059669, #10b981); }
+    .toast.error { background: linear-gradient(135deg, #dc2626, #ef4444); }
+    .toast.notify { background: linear-gradient(135deg, var(--primary), var(--accent)); }
+
+    /* ── Image Modal ── */
+    .img-modal {
+      position: fixed; inset: 0; z-index: 200; background: rgba(0,0,0,0.92);
+      display: flex; align-items: center; justify-content: center; padding: 1rem;
+      opacity: 0; pointer-events: none; transition: opacity 0.25s;
+    }
+    .img-modal.open { opacity: 1; pointer-events: auto; }
+    .img-modal img { max-width: 100%; max-height: 90vh; border-radius: var(--radius-sm); object-fit: contain; }
+    .img-modal .close-x {
+      position: absolute; top: 1rem; right: 1rem; width: 44px; height: 44px;
+      background: rgba(255,255,255,0.1); border-radius: 50%; display: flex;
+      align-items: center; justify-content: center; font-size: 1.5rem; color: white;
+    }
+
+    /* ── Loading ── */
+    .skeleton { background: linear-gradient(90deg, var(--bg3) 25%, var(--bg4) 50%, var(--bg3) 75%); background-size: 200% 100%; animation: shimmer 1.2s infinite; border-radius: var(--radius-sm); }
+    @keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+    .loading-dots::after { content: ''; animation: dots 1.4s infinite; }
+    @keyframes dots { 0%,20% { content: '.'; } 40% { content: '..'; } 60%,100% { content: '...'; } }
+
+    /* ── Footer ── */
+    .app-footer { padding: 1rem; text-align: center; font-size: 0.72rem; color: var(--text3); border-top: 1px solid var(--border); margin-top: auto; }
+
+    /* ── Animations ── */
+    @keyframes pulse-ring { 0% { transform: scale(0.8); opacity: 1; } 100% { transform: scale(1.3); opacity: 0; } }
+    .pulse-ring { position: absolute; inset: -4px; border-radius: 50%; border: 2px solid var(--green); animation: pulse-ring 2s ease-out infinite; pointer-events: none; }
+  </style>
+<base target="_blank">
+</head>
+<body>
+<div class="app" id="app">
+
+  <!-- Header -->
+  <header class="app-header" id="appHeader" style="display:none">
+    <h1><span class="logo">🧬</span> DNA Lab</h1>
+    <div class="header-actions">
+      <button class="icon-btn" id="soundBtn" onclick="App.toggleSound()" title="Sound">🔊</button>
+      <button class="icon-btn" id="notifBtn" onclick="App.toggleNotif()" title="Push notifications">🔔</button>
+      <button class="icon-btn" id="onlineBtn" onclick="App.toggleOnline()" title="Online status">
+        <span id="onlineDot" style="width:10px;height:10px;border-radius:50%;background:var(--green);display:block"></span>
+      </button>
+      <button class="icon-btn" onclick="App.logout()" title="Logout">🚪</button>
+    </div>
+  </header>
+
+  <!-- Login Screen -->
+  <div class="login-screen" id="loginScreen">
+    <div class="login-card">
+      <div style="font-size:3rem;margin-bottom:0.5rem">🧬</div>
+      <h2>DNA Lab Admin</h2>
+      <p>Enter your admin password to access the control center</p>
+      <input type="password" id="pwInput" placeholder="Admin password" onkeydown="if(event.key==='Enter')App.login()">
+      <button class="btn-primary" onclick="App.login()" id="loginBtn">Enter Lab</button>
+    </div>
+    <p style="margin-top:1.5rem;color:var(--text3);font-size:0.8rem">Scroll DNA · AI-Powered Trading Cards</p>
+  </div>
+
+  <!-- Dashboard -->
+  <div class="dashboard" id="dashboard" style="display:none">
+    <div class="dash-header">
+      <h2>Control Center</h2>
+      <button class="status-pill online" id="statusPill" onclick="App.toggleOnline()">
+        <span class="status-dot" id="statusDot"></span>
+        <span id="statusText">Online</span>
+      </button>
+    </div>
+
+    <div class="stats-grid" id="statsGrid">
+      <div class="stat-box skeleton" style="height:80px"></div>
+      <div class="stat-box skeleton" style="height:80px"></div>
+      <div class="stat-box skeleton" style="height:80px"></div>
+      <div class="stat-box skeleton" style="height:80px"></div>
+    </div>
+
+    <div class="tab-bar">
+      <button class="tab-btn active" onclick="App.tab('pending')" id="tab-pending-btn">
+        ⏸ Pending<span class="tab-badge hidden" id="pendingBadge">0</span>
+      </button>
+      <button class="tab-btn" onclick="App.tab('uploads')" id="tab-uploads-btn">
+        📤 Uploads
+      </button>
+      <button class="tab-btn" onclick="App.tab('cards')" id="tab-cards-btn">
+        🎴 Cards
+      </button>
+      <button class="tab-btn" onclick="App.tab('create')" id="tab-create-btn">
+        ✍️ Create
+      </button>
+    </div>
+
+    <!-- Pending Panel -->
+    <div class="panel active" id="panel-pending">
+      <div id="pendingList"></div>
+    </div>
+
+    <!-- Uploads Panel -->
+    <div class="panel" id="panel-uploads">
+      <div id="uploadsList"></div>
+    </div>
+
+    <!-- Cards Panel -->
+    <div class="panel" id="panel-cards">
+      <div id="cardsList"></div>
+    </div>
+
+    <!-- Create Panel -->
+    <div class="panel" id="panel-create">
+      <div class="form-card">
+        <div class="field-row">
+          <div class="field"><label>Card Name</label><input id="c-name" placeholder="e.g. Algorithm Whisperer"></div>
+          <div class="field"><label>Username</label><input id="c-user" placeholder="@handle"></div>
+        </div>
+        <div class="field"><label>Profile Link</label><input id="c-link" type="url" placeholder="https://instagram.com/..."></div>
+        <div class="field-row">
+          <div class="field">
+            <label>Rarity</label>
+            <select id="c-rarity">
+              <option value="common">Common</option><option value="rare">Rare</option>
+              <option value="epic">Epic</option><option value="legendary">Legendary</option>
+            </select>
+          </div>
+          <div class="field"><label>Score (5–10)</label><input id="c-score" type="number" min="5" max="10" step="0.1" value="7.5"></div>
+          <div class="field">
+            <label>Grade</label>
+            <select id="c-grade">
+              <option>D</option><option>C</option><option>B</option><option>A</option>
+              <option>A+</option><option>S</option><option value="S+" selected>S+</option><option>SS</option>
+            </select>
+          </div>
+        </div>
+        <div class="field"><label>Description</label><textarea id="c-desc" rows="3" placeholder="Describe this card..."></textarea></div>
+        <div class="stats-grid-form">
+          <div class="field"><label>Creativity</label><input id="s-creativity" type="number" min="40" max="99" value="70"></div>
+          <div class="field"><label>Engagement</label><input id="s-engagement" type="number" min="40" max="99" value="70"></div>
+          <div class="field"><label>Consistency</label><input id="s-consistency" type="number" min="40" max="99" value="70"></div>
+          <div class="field"><label>Virality</label><input id="s-virality" type="number" min="40" max="99" value="70"></div>
+          <div class="field"><label>Aesthetic</label><input id="s-aesthetic" type="number" min="40" max="99" value="70"></div>
+          <div class="field"><label>Authenticity</label><input id="s-authenticity" type="number" min="40" max="99" value="70"></div>
+        </div>
+        <button class="btn-primary" style="margin-top:0.5rem" onclick="App.createCard()">✨ Create Card</button>
+      </div>
+    </div>
+  </div>
+
+  <footer class="app-footer" id="appFooter" style="display:none">
+    Scroll DNA Admin · <span id="connStatus">Connecting...</span>
+  </footer>
+</div>
+
+<!-- Image Modal -->
+<div class="img-modal" id="imgModal" onclick="App.closeModal()">
+  <button class="close-x">×</button>
+  <img id="modalImg" src="" alt="">
+</div>
+
+<!-- Toast Container -->
+<div class="toast-wrap" id="toastWrap"></div>
+
+<script>
+'use strict';
+
+const API = window.location.origin;
+
+const App = {
+  token: localStorage.getItem('sdna_admin') || null,
+  sound: localStorage.getItem('sdna_admin_sound') !== 'false',
+  notif: localStorage.getItem('sdna_admin_notif') === 'true',
+  sse: null,
+  online: true,
+  activeTab: 'pending',
+  pendingUploadId: null,
+  reconnectTimer: null,
+
+  init() {
+    if (this.token) { this.showDashboard(); this.connectSSE(); this.loadAll(); }
+    else this.showLogin();
+    this.updateSoundBtn();
+    this.updateNotifBtn();
+  },
+
+  // ── Auth ──
+  async login() {
+    const pw = document.getElementById('pwInput').value;
+    const btn = document.getElementById('loginBtn');
+    btn.disabled = true; btn.textContent = 'Checking...';
+    try {
+      const res = await fetch(`${API}/api/admin/login`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password: pw })
+      });
+      const d = await res.json();
+      if (d.success) {
+        this.token = d.token;
+        localStorage.setItem('sdna_admin', d.token);
+        this.showDashboard();
+        this.connectSSE();
+        this.loadAll();
+        this.toast('Welcome to DNA Lab', 'success');
+      } else {
+        this.toast('Wrong password', 'error');
+      }
+    } catch(e) { this.toast('Server offline', 'error'); }
+    btn.disabled = false; btn.textContent = 'Enter Lab';
+  },
+
+  logout() {
+    this.token = null; localStorage.removeItem('sdna_admin');
+    if (this.sse) { this.sse.close(); this.sse = null; }
+    this.showLogin(); this.toast('Logged out', 'info');
+  },
+
+  showLogin() {
+    document.getElementById('loginScreen').style.display = 'flex';
+    document.getElementById('dashboard').style.display = 'none';
+    document.getElementById('appHeader').style.display = 'none';
+    document.getElementById('appFooter').style.display = 'none';
+  },
+
+  showDashboard() {
+    document.getElementById('loginScreen').style.display = 'none';
+    document.getElementById('dashboard').style.display = 'block';
+    document.getElementById('appHeader').style.display = 'flex';
+    document.getElementById('appFooter').style.display = 'block';
+  },
+
+  // ── SSE / Real-time ──
+  connectSSE() {
+    if (this.sse) this.sse.close();
+    try {
+      this.sse = new EventSource(`${API}/api/admin/stream`);
+      this.sse.onopen = () => { document.getElementById('connStatus').textContent = '● Live'; };
+      this.sse.onmessage = e => {
+        try {
+          const d = JSON.parse(e.data);
+          if (d.type === 'connected') return;
+          this.handleSSE(d);
+        } catch(err) {}
+      };
+      this.sse.onerror = () => {
+        document.getElementById('connStatus').textContent = '○ Reconnecting...';
+        if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
+        this.reconnectTimer = setTimeout(() => this.connectSSE(), 4000);
+      };
+    } catch(e) {}
+  },
+
+  handleSSE(d) {
+    this.playNotify();
+    this.toast(d.message, 'notify', 4000);
+    if (this.notif && Notification.permission === 'granted') {
+      new Notification('Scroll DNA Lab', { body: d.message, icon: '🧬' });
+    }
+    if (['new_upload','pending_added','rejected'].includes(d.type)) { this.loadPending(); this.loadStats(); }
+    if (['card_generated','manual_approved','fallback_used'].includes(d.type)) { this.loadCards(); this.loadStats(); this.loadUploads(); }
+    if (['upload_deleted'].includes(d.type)) { this.loadUploads(); this.loadStats(); }
+  },
+
+  // ── Online Toggle ──
+  async toggleOnline() {
+    const pill = document.getElementById('statusPill');
+    const dot = document.getElementById('statusDot');
+    const txt = document.getElementById('statusText');
+    const isOnline = pill.classList.contains('online');
+    try {
+      await fetch(`${API}/api/admin/status`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json', 'x-admin-auth': this.token },
+        body: JSON.stringify({ online: !isOnline })
+      });
+      if (isOnline) {
+        pill.classList.remove('online'); pill.classList.add('offline');
+        dot.style.background = 'var(--text3)'; txt.textContent = 'Offline';
+        this.online = false; this.toast('You are offline — AI auto-generates', 'info');
+      } else {
+        pill.classList.remove('offline'); pill.classList.add('online');
+        dot.style.background = 'var(--green)'; txt.textContent = 'Online';
+        this.online = true; this.toast('You are online — manual review enabled', 'success');
+      }
+    } catch(e) {}
+  },
+
+  // ── Tabs ──
+  tab(name) {
+    this.activeTab = name;
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.getElementById('tab-' + name + '-btn').classList.add('active');
+    document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+    document.getElementById('panel-' + name).classList.add('active');
+    if (name === 'pending') this.loadPending();
+    if (name === 'uploads') this.loadUploads();
+    if (name === 'cards') this.loadCards();
+  },
+
+  // ── Data Loading ──
+  async loadAll() {
+    await this.loadStats();
+    if (this.activeTab === 'pending') this.loadPending();
+    if (this.activeTab === 'uploads') this.loadUploads();
+    if (this.activeTab === 'cards') this.loadCards();
+  },
+
+  async loadStats() {
+    try {
+      const res = await fetch(`${API}/api/admin/stats`, { headers: { 'x-admin-auth': this.token } });
+      const d = await res.json();
+      const grid = document.getElementById('statsGrid');
+      grid.innerHTML = [
+        ['Total Uploads', d.totalUploads || 0],
+        ['Total Cards', d.totalCards || 0],
+        ['Pending Review', d.pendingCount || 0],
+        ['AI Cards', d.aiCards || 0]
+      ].map(([lbl, val]) => `
+        <div class="stat-box">
+          <span class="stat-num">${val}</span>
+          <span class="stat-lbl">${lbl}</span>
+        </div>`).join('');
+      const badge = document.getElementById('pendingBadge');
+      if (badge) { badge.textContent = d.pendingCount || 0; badge.classList.toggle('hidden', !d.pendingCount); }
+    } catch(e) {}
+  },
+
+  async loadPending() {
+    const wrap = document.getElementById('pendingList');
+    wrap.innerHTML = '<div class="empty"><span class="empty-icon loading-dots">Loading</span></div>';
+    try {
+      const res = await fetch(`${API}/api/admin/pending`, { headers: { 'x-admin-auth': this.token } });
+      const d = await res.json();
+      if (!d.pending?.length) { wrap.innerHTML = '<div class="empty"><span class="empty-icon">✅</span>No pending uploads — all caught up!</div>'; return; }
+      wrap.innerHTML = '';
+      d.pending.forEach(u => wrap.appendChild(this.buildUploadCard(u, true)));
+    } catch(e) { wrap.innerHTML = '<div class="empty"><span class="empty-icon">⚠️</span>Error loading queue</div>'; }
+  },
+
+  async loadUploads() {
+    const wrap = document.getElementById('uploadsList');
+    wrap.innerHTML = '<div class="empty"><span class="empty-icon loading-dots">Loading</span></div>';
+    try {
+      const res = await fetch(`${API}/api/admin/uploads`, { headers: { 'x-admin-auth': this.token } });
+      const d = await res.json();
+      if (!d.uploads?.length) { wrap.innerHTML = '<div class="empty"><span class="empty-icon">📭</span>No uploads yet</div>'; return; }
+      wrap.innerHTML = '';
+      d.uploads.forEach(u => wrap.appendChild(this.buildUploadCard(u, false)));
+    } catch(e) { wrap.innerHTML = '<div class="empty"><span class="empty-icon">⚠️</span>Error loading uploads</div>'; }
+  },
+
+  async loadCards() {
+    const wrap = document.getElementById('cardsList');
+    wrap.innerHTML = '<div class="empty"><span class="empty-icon loading-dots">Loading</span></div>';
+    try {
+      const res = await fetch(`${API}/api/admin/cards`, { headers: { 'x-admin-auth': this.token } });
+      const d = await res.json();
+      if (!d.cards?.length) { wrap.innerHTML = '<div class="empty"><span class="empty-icon">🃏</span>No cards yet</div>'; return; }
+      wrap.innerHTML = '';
+      d.cards.forEach(card => {
+        const rd = card.rarityData || this.getRarityData(card.rarity);
+        const srcClass = 'src-' + (card.source || 'mock');
+        const el = document.createElement('div');
+        el.className = 'card-item';
+        el.innerHTML = `
+          <div class="card-swatch" style="background:${rd.gradient || rd.color || '#4b5563'}">${card.name.charAt(0)}</div>
+          <div class="card-info">
+            <h4>${card.name} <span class="src-tag ${srcClass}">${card.source || '?'}</span></h4>
+            <p>${card.rarity.toUpperCase()} · ⭐${card.score} · ${card.grade} · @${card.username || '?'}</p>
+          </div>
+          <button class="btn-sm btn-delete" onclick="App.deleteCard('${card.id}')">Delete</button>`;
+        wrap.appendChild(el);
+      });
+    } catch(e) { wrap.innerHTML = '<div class="empty"><span class="empty-icon">⚠️</span>Error loading cards</div>'; }
+  },
+
+  // ── Build Upload Card ──
+  buildUploadCard(u, isPending) {
+    const el = document.createElement('div');
+    el.className = `upload-card ${u.status}`;
+    el.id = `upload-${u.id}`;
+
+    const date = new Date(u.timestamp).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+    const profileImg = u.profilePic ? `<img class="uc-profile-pic" src="${API}${u.profilePic.url}" alt="" onclick="App.openModal(this.src)">` : '';
+    const imgs = u.files.map(f => `<img src="${API}/uploads/${f.filename}" alt="" onclick="App.openModal(this.src)">`).join('');
+
+    let actions = '';
+    if (isPending) {
+      actions = `
+        <button class="btn-sm btn-approve" onclick="App.approve(${u.id})">✨ Create Card</button>
+        <button class="btn-sm btn-reject" onclick="App.reject(${u.id})">❌ Reject</button>`;
+    } else {
+      if (u.status === 'error') {
+        actions += `<button class="btn-sm btn-action" onclick="App.retryAI(${u.id})">🤖 Retry AI</button>`;
+      }
+      actions += `<button class="btn-sm btn-action" onclick="App.viewUpload(${u.id})">👁 View</button>`;
+      actions += `<button class="btn-sm btn-delete" onclick="App.deleteUpload(${u.id})">🗑 Delete</button>`;
+    }
+
+    el.innerHTML = `
+      <div class="uc-header">
+        <div>
+          <div class="uc-user">#${u.id} — ${u.username || 'Anonymous'}</div>
+          <div class="uc-meta">
+            📅 ${date} · 📁 ${u.files.length} file${u.files.length !== 1 ? 's' : ''}
+            ${u.profileLink ? '<br>🔗 <a href="' + u.profileLink + '" target="_blank">' + u.profileLink + '</a>' : ''}
+          </div>
+        </div>
+        <span class="uc-status ${u.status}">${u.status}</span>
+      </div>
+      ${u.error ? `<div class="uc-error">❌ ${u.error}</div>` : ''}
+      <div class="uc-gallery">${profileImg}${imgs}</div>
+      <div class="uc-actions">${actions}</div>`;
+    return el;
+  },
+
+  // ── Actions ──
+  async approve(uploadId) {
+    try {
+      const res = await fetch(`${API}/api/admin/pending`, { headers: { 'x-admin-auth': this.token } });
+      const d = await res.json();
+      const u = d.pending.find(x => x.id == uploadId);
+      if (!u) { this.toast('Upload not found', 'error'); return; }
+
+      this.pendingUploadId = uploadId;
+      this.tab('create');
+      document.getElementById('c-name').value = u.username ? `${u.username}'s Card` : 'Custom Card';
+      document.getElementById('c-user').value = u.username || '';
+      document.getElementById('c-link').value = u.profileLink || '';
+      this.toast('Pre-filled from upload. Adjust & click Create Card.', 'info', 5000);
+    } catch(e) { this.toast('Error', 'error'); }
+  },
+
+  async reject(uploadId) {
+    if (!confirm('Reject this upload? Files will be deleted.')) return;
+    try {
+      await fetch(`${API}/api/admin/pending/${uploadId}/reject`, { method: 'POST', headers: { 'x-admin-auth': this.token } });
+      this.toast('Upload rejected', 'info');
+      this.loadPending(); this.loadStats();
+    } catch(e) { this.toast('Reject failed', 'error'); }
+  },
+
+  async retryAI(uploadId) {
+    const btn = document.querySelector(`#upload-${uploadId} .btn-action`);
+    if (btn) { btn.disabled = true; btn.textContent = 'Running...'; }
+    try {
+      const res = await fetch(`${API}/api/admin/uploads/${uploadId}/generate`, { method: 'POST', headers: { 'x-admin-auth': this.token } });
+      const d = await res.json();
+      if (d.success) { this.toast(`✅ AI generated ${d.card.rarity.toUpperCase()} card!`, 'success'); this.loadUploads(); this.loadCards(); this.loadStats(); }
+      else { this.toast(d.error || 'AI failed', 'error'); }
+    } catch(e) { this.toast('Server error', 'error'); }
+    if (btn) { btn.disabled = false; btn.textContent = '🤖 Retry AI'; }
+  },
+
+  async deleteUpload(uploadId) {
+    if (!confirm('Permanently delete this upload and all its files?')) return;
+    try {
+      await fetch(`${API}/api/admin/uploads/${uploadId}`, { method: 'DELETE', headers: { 'x-admin-auth': this.token } });
+      this.toast('Upload deleted', 'info'); this.loadUploads(); this.loadStats();
+    } catch(e) { this.toast('Delete failed', 'error'); }
+  },
+
+  async deleteCard(cardId) {
+    if (!confirm('Delete this card?')) return;
+    try {
+      await fetch(`${API}/api/admin/cards/${cardId}`, { method: 'DELETE', headers: { 'x-admin-auth': this.token } });
+      this.toast('Card deleted', 'info'); this.loadCards(); this.loadStats();
+    } catch(e) { this.toast('Delete failed', 'error'); }
+  },
+
+  async viewUpload(uploadId) {
+    try {
+      const res = await fetch(`${API}/api/admin/uploads/${uploadId}`, { headers: { 'x-admin-auth': this.token } });
+      const u = await res.json();
+      let html = `<div style="background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius-md);padding:1rem;margin-bottom:1rem">
+        <h3 style="font-weight:600;margin-bottom:0.5rem">Upload #${u.id}</h3>
+        <p style="font-size:0.8rem;color:var(--text2);margin-bottom:0.75rem">${u.username || 'Anonymous'} · ${u.files.length} files · ${u.status}</p>
+        <div style="display:flex;gap:0.5rem;flex-wrap:wrap">`;
+      u.files.forEach(f => {
+        html += `<img src="${API}/uploads/${f.filename}" style="width:100px;height:100px;object-fit:cover;border-radius:var(--radius-sm);border:1px solid var(--border);cursor:pointer" onclick="App.openModal(this.src)">`;
+      });
+      html += `</div></div>`;
+      const wrap = document.getElementById('uploadsList');
+      const existing = document.getElementById('upload-detail-' + uploadId);
+      if (existing) { existing.remove(); return; }
+      const detail = document.createElement('div');
+      detail.id = 'upload-detail-' + uploadId;
+      detail.innerHTML = html;
+      const card = document.getElementById('upload-' + uploadId);
+      if (card) card.after(detail);
+    } catch(e) {}
+  },
+
+  async createCard() {
+    const name = document.getElementById('c-name').value.trim();
+    if (!name) { this.toast('Card name required', 'error'); return; }
+    const card = {
+      name, rarity: document.getElementById('c-rarity').value,
+      score: parseFloat(document.getElementById('c-score').value) || 7.5,
+      grade: document.getElementById('c-grade').value,
+      description: document.getElementById('c-desc').value.trim(),
+      username: document.getElementById('c-user').value.trim() || 'Admin',
+      profileLink: document.getElementById('c-link').value.trim(),
+      stats: {
+        creativity: parseInt(document.getElementById('s-creativity').value) || 70,
+        engagement: parseInt(document.getElementById('s-engagement').value) || 70,
+        consistency: parseInt(document.getElementById('s-consistency').value) || 70,
+        virality: parseInt(document.getElementById('s-virality').value) || 70,
+        aesthetic: parseInt(document.getElementById('s-aesthetic').value) || 70,
+        authenticity: parseInt(document.getElementById('s-authenticity').value) || 70,
+      }
+    };
+
+    // If approving pending upload
+    if (this.pendingUploadId) {
+      try {
+        const res = await fetch(`${API}/api/admin/pending/${this.pendingUploadId}/approve`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json', 'x-admin-auth': this.token },
+          body: JSON.stringify({ cardData: card })
+        });
+        const d = await res.json();
+        if (d.success) {
+          this.toast('Card approved & created!', 'success');
+          this.pendingUploadId = null;
+          document.getElementById('c-name').value = '';
+          document.getElementById('c-desc').value = '';
+          document.getElementById('c-user').value = '';
+          document.getElementById('c-link').value = '';
+          this.tab('pending'); this.loadAll();
+        } else { this.toast(d.error || 'Failed', 'error'); }
+      } catch(e) { this.toast('Server error', 'error'); }
+      return;
+    }
+
+    // Normal create
+    try {
+      const res = await fetch(`${API}/api/admin/cards`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json', 'x-admin-auth': this.token },
+        body: JSON.stringify(card)
+      });
+      const d = await res.json();
+      if (d.success) { this.toast(`Card "${name}" created!`, 'success'); document.getElementById('c-name').value = ''; this.loadCards(); this.loadStats(); }
+      else { this.toast(d.error || 'Failed', 'error'); }
+    } catch(e) { this.toast('Server error', 'error'); }
+  },
+
+  // ── Modal ──
+  openModal(src) { document.getElementById('modalImg').src = src; document.getElementById('imgModal').classList.add('open'); },
+  closeModal() { document.getElementById('imgModal').classList.remove('open'); },
+
+  // ── Settings ──
+  toggleSound() { this.sound = !this.sound; localStorage.setItem('sdna_admin_sound', this.sound); this.updateSoundBtn(); this.toast(this.sound ? 'Sound on' : 'Sound off', 'info'); },
+  updateSoundBtn() { const btn = document.getElementById('soundBtn'); if (btn) btn.textContent = this.sound ? '🔊' : '🔇'; },
+
+  toggleNotif() {
+    this.notif = !this.notif; localStorage.setItem('sdna_admin_notif', this.notif); this.updateNotifBtn();
+    if (this.notif && Notification.permission !== 'granted') Notification.requestPermission();
+    this.toast(this.notif ? 'Push notifications on' : 'Push notifications off', 'info');
+  },
+  updateNotifBtn() { const btn = document.getElementById('notifBtn'); if (btn) btn.classList.toggle('on', this.notif); },
+
+  // ── Audio ──
+  playNotify() {
+    if (!this.sound) return;
+    try {
+      const ctx = new (window.AudioContext || window.webkitAudioContext)();
+      const osc = ctx.createOscillator(); const gain = ctx.createGain();
+      osc.type = 'sine'; osc.frequency.setValueAtTime(880, ctx.currentTime);
+      gain.gain.setValueAtTime(0.05, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.3);
+      osc.connect(gain); gain.connect(ctx.destination); osc.start(); osc.stop(ctx.currentTime + 0.3);
+      setTimeout(() => {
+        const osc2 = ctx.createOscillator(); const g2 = ctx.createGain();
+        osc2.type = 'sine'; osc2.frequency.setValueAtTime(1100, ctx.currentTime);
+        g2.gain.setValueAtTime(0.05, ctx.currentTime); g2.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.3);
+        osc2.connect(g2); g2.connect(ctx.destination); osc2.start(); osc2.stop(ctx.currentTime + 0.3);
+      }, 100);
+    } catch(e) {}
+  },
+
+  // ── Toast ──
+  toast(msg, type='info', duration=3500) {
+    const wrap = document.getElementById('toastWrap');
+    const el = document.createElement('div');
+    el.className = `toast ${type}`; el.textContent = msg;
+    wrap.appendChild(el);
+    requestAnimationFrame(() => requestAnimationFrame(() => el.classList.add('show')));
+    setTimeout(() => { el.classList.remove('show'); setTimeout(() => el.remove(), 400); }, duration);
+  },
+
+  getRarityData(rarity) {
+    const map = {
+      common: { gradient: 'linear-gradient(135deg,#4b5563,#2d3142)', color: '#6b7280' },
+      rare: { gradient: 'linear-gradient(135deg,#1e3a8a,#1e40af)', color: '#3b82f6' },
+      epic: { gradient: 'linear-gradient(135deg,#4c1d95,#6b21a8)', color: '#a855f7' },
+      legendary: { gradient: 'linear-gradient(135deg,#92400e,#b45309)', color: '#f59e0b' }
+    };
+    return map[rarity] || map.common;
+  }
+};
+
+// Close modal on Escape
+document.addEventListener('keydown', e => { if (e.key === 'Escape') App.closeModal(); });
+
+// Boot
+App.init();
+</script>
+</body>
+</html>
