@@ -33,6 +33,16 @@ const CARDS_DATA_FILE = path.join(DATA_DIR, 'cards.json');
 const COUNTER_FILE = path.join(DATA_DIR, 'counter.json');
 
 // ==========================================
+// SHARED RARITY CONFIGS (FIXED: gradient/glow properties)
+// ==========================================
+const RARITY_CONFIGS = {
+  common:    { weight: 1,   gradient: 'linear-gradient(135deg,#4b5563,#2d3142)', border: '#6b7280', glow: 'rgba(107,114,128,0.3)' },
+  rare:      { weight: 10,  gradient: 'linear-gradient(135deg,#1e3a8a,#1e40af)', border: '#3b82f6', glow: 'rgba(59,130,246,0.4)' },
+  epic:      { weight: 25,  gradient: 'linear-gradient(135deg,#5b21b6,#6b21a8)', border: '#8b5cf6', glow: 'rgba(168,85,247,0.4)' },
+  legendary: { weight: 100, gradient: 'linear-gradient(135deg,#d97706,#f59e0b)', border: '#fbbf24', glow: 'rgba(245,158,11,0.5)' }
+};
+
+// ==========================================
 // PERSISTENT STORAGE
 // ==========================================
 let uploadsStore = [];
@@ -80,7 +90,7 @@ app.use(cors());
 app.use(express.json({ limit: '50mb' }));
 app.use(express.static(path.join(__dirname, 'front-end')));
 
-// Serve uploaded files publicly (needed for admin previews)
+// Serve uploaded files publicly
 app.use('/uploads', express.static(UPLOADS_DIR));
 
 const storage = multer.diskStorage({
@@ -131,7 +141,6 @@ function notifyAdmins(data) {
   });
 }
 
-// FIXED: SSE uses query param auth since EventSource can't send headers
 app.get('/api/admin/stream', (req, res) => {
   const auth = req.query.token;
   if (auth !== ADMIN_PASSWORD) return res.status(401).json({ error: 'Unauthorized' });
@@ -176,6 +185,38 @@ app.post('/api/instant-card', (req, res) => {
   saveData();
   console.log(`⚡ Instant card: ${card.name}`);
   res.json({ success: true, card });
+});
+
+// ==========================================
+// USER POLLING — Check if queued card is ready (NEW)
+// ==========================================
+app.get('/api/check-card/:uploadId', (req, res) => {
+  const card = cardsStore.find(c => c.uploadId === parseInt(req.params.uploadId));
+  if (card) {
+    res.json({ ready: true, card });
+  } else {
+    res.json({ ready: false });
+  }
+});
+
+// ==========================================
+// USER CARDS — Only cards for this user (NEW)
+// ==========================================
+app.get('/api/user-cards', (req, res) => {
+  const username = req.query.username?.trim().toLowerCase();
+  if (!username) return res.json({ cards: [] });
+
+  const userCards = cardsStore.filter(c => 
+    c.username?.toLowerCase() === username
+  );
+  res.json({ cards: userCards });
+});
+
+// ==========================================
+// PUBLIC CARDS FEED (for global gallery if needed)
+// ==========================================
+app.get('/api/cards', (req, res) => {
+  res.json({ cards: cardsStore });
 });
 
 // ==========================================
@@ -414,13 +455,6 @@ Rules:
   const validRarities = ['common', 'rare', 'epic', 'legendary'];
   if (!validRarities.includes(cardData.rarity)) cardData.rarity = 'common';
 
-  const rarityConfigs = {
-    common: { weight: 1, color: 'linear-gradient(135deg, #4b5563, #2d3142)', border: '#6b7280' },
-    rare: { weight: 10, color: 'linear-gradient(135deg, #1e3a8a, #1e40af)', border: '#3b82f6' },
-    epic: { weight: 25, color: 'linear-gradient(135deg, #5b21b6, #6b21a8)', border: '#8b5cf6' },
-    legendary: { weight: 100, color: 'linear-gradient(135deg, #d97706, #f59e0b)', border: '#fbbf24' }
-  };
-
   return {
     id: 'card_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9),
     ...cardData,
@@ -430,7 +464,7 @@ Rules:
     createdAt: new Date().toISOString(),
     source: 'ai',
     uploadId: uploadRecord.id,
-    rarityData: rarityConfigs[cardData.rarity]
+    rarityData: RARITY_CONFIGS[cardData.rarity]
   };
 }
 
@@ -449,13 +483,6 @@ app.post('/api/admin/pending/:uploadId/approve', requireAdmin, async (req, res) 
   const uploadRecord = pendingQueue.splice(idx, 1)[0];
   const { cardData } = req.body;
 
-  const rarityConfigs = {
-    common: { weight: 1, color: 'linear-gradient(135deg, #4b5563, #2d3142)', border: '#6b7280' },
-    rare: { weight: 10, color: 'linear-gradient(135deg, #1e3a8a, #1e40af)', border: '#3b82f6' },
-    epic: { weight: 25, color: 'linear-gradient(135deg, #5b21b6, #6b21a8)', border: '#8b5cf6' },
-    legendary: { weight: 100, color: 'linear-gradient(135deg, #d97706, #f59e0b)', border: '#fbbf24' }
-  };
-
   const card = {
     id: 'card_manual_' + Date.now(),
     ...cardData,
@@ -465,7 +492,7 @@ app.post('/api/admin/pending/:uploadId/approve', requireAdmin, async (req, res) 
     createdAt: new Date().toISOString(),
     source: 'manual',
     uploadId: uploadRecord.id,
-    rarityData: rarityConfigs[cardData.rarity || 'common']
+    rarityData: RARITY_CONFIGS[cardData.rarity || 'common']
   };
 
   cardsStore.unshift(card);
@@ -604,10 +631,10 @@ app.delete('/api/admin/uploads/:id', requireAdmin, (req, res) => {
 // ==========================================
 function generateMockCard() {
   const rarities = [
-    { type: 'common', weight: 1, color: 'linear-gradient(135deg, #4b5563, #2d3142)', border: '#6b7280', chance: 0.7 },
-    { type: 'rare', weight: 10, color: 'linear-gradient(135deg, #1e3a8a, #1e40af)', border: '#3b82f6', chance: 0.22 },
-    { type: 'epic', weight: 25, color: 'linear-gradient(135deg, #5b21b6, #6b21a8)', border: '#8b5cf6', chance: 0.07 },
-    { type: 'legendary', weight: 100, color: 'linear-gradient(135deg, #d97706, #f59e0b)', border: '#fbbf24', chance: 0.01 }
+    { type: 'common',    weight: 1,   gradient: 'linear-gradient(135deg,#4b5563,#2d3142)', border: '#6b7280', chance: 0.7,  glow: 'rgba(107,114,128,0.3)' },
+    { type: 'rare',      weight: 10,  gradient: 'linear-gradient(135deg,#1e3a8a,#1e40af)', border: '#3b82f6', chance: 0.22, glow: 'rgba(59,130,246,0.4)' },
+    { type: 'epic',      weight: 25,  gradient: 'linear-gradient(135deg,#5b21b6,#6b21a8)', border: '#8b5cf6', chance: 0.07, glow: 'rgba(168,85,247,0.4)' },
+    { type: 'legendary', weight: 100, gradient: 'linear-gradient(135deg,#d97706,#f59e0b)', border: '#fbbf24', chance: 0.01, glow: 'rgba(245,158,11,0.5)' }
   ];
 
   const roll = Math.random();
@@ -633,7 +660,7 @@ function generateMockCard() {
     id: 'card_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9),
     name: names[Math.floor(Math.random() * names.length)],
     rarity: rarity.type,
-    rarityData: { weight: rarity.weight, color: rarity.color, border: rarity.border },
+    rarityData: { weight: rarity.weight, gradient: rarity.gradient, border: rarity.border, glow: rarity.glow },
     score: parseFloat(score.toFixed(1)),
     grade,
     stats: {
@@ -673,18 +700,11 @@ app.post('/api/admin/cards', requireAdmin, (req, res) => {
   const validRarities = ['common', 'rare', 'epic', 'legendary'];
   if (!validRarities.includes(rarity)) return res.status(400).json({ error: 'Invalid rarity' });
 
-  const rarityConfigs = {
-    common: { weight: 1, color: 'linear-gradient(135deg, #4b5563, #2d3142)', border: '#6b7280' },
-    rare: { weight: 10, color: 'linear-gradient(135deg, #1e3a8a, #1e40af)', border: '#3b82f6' },
-    epic: { weight: 25, color: 'linear-gradient(135deg, #5b21b6, #6b21a8)', border: '#8b5cf6' },
-    legendary: { weight: 100, color: 'linear-gradient(135deg, #d97706, #f59e0b)', border: '#fbbf24' }
-  };
-
   const card = {
     id: 'card_manual_' + Date.now(),
     name, rarity, username: username || 'Admin', profileLink: profileLink || '',
     profilePicUrl: profilePicUrl || null,
-    rarityData: rarityConfigs[rarity],
+    rarityData: RARITY_CONFIGS[rarity],
     score: score || 7.0,
     grade: grade || 'B',
     stats: stats || { creativity: 70, engagement: 70, consistency: 70, virality: 70, aesthetic: 70, authenticity: 70 },
@@ -735,12 +755,6 @@ app.get('/api/admin/stats', requireAdmin, (req, res) => {
   });
 });
 
-// ==========================================
-// PUBLIC CARDS FEED (for users)
-// ==========================================
-app.get('/api/cards', (req, res) => {
-  res.json({ cards: cardsStore });
-});
 // ==========================================
 // START SERVER
 // ==========================================

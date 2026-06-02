@@ -1,6 +1,6 @@
 /**
  * SCROLL DNA — script.js
- * Updated: Auto-receive admin cards + polling fix + operator bug fixes
+ * Updated: Auto-receive admin cards + user-only collection + text fixes
  */
 
 'use strict';
@@ -23,6 +23,7 @@ const State = {
   unreadNotifs: 0,
   sse: null,
   serverUrl: window.location.origin,
+  currentUsername: '',
 
   load() {
     try {
@@ -32,6 +33,7 @@ const State = {
       this.lastGen = localStorage.getItem('sdna_lastgen') || null;
       this.adminToken = localStorage.getItem('sdna_admin') || null;
       this.sound   = localStorage.getItem('sdna_sound') !== 'false';
+      this.currentUsername = localStorage.getItem('sdna_username') || '';
     } catch(e) {}
   },
   save() {
@@ -41,6 +43,7 @@ const State = {
     localStorage.setItem('sdna_lastgen', this.lastGen || '');
     localStorage.setItem('sdna_admin', this.adminToken || '');
     localStorage.setItem('sdna_sound', this.sound);
+    localStorage.setItem('sdna_username', this.currentUsername);
   }
 };
 
@@ -303,7 +306,7 @@ const PicUpload = {
 const Upload = {
   genTimer: null,
   genTimeLeft: 120,
-  pollInterval: null, // NEW: stores the polling loop
+  pollInterval: null,
 
   init() {
     const dz = document.getElementById('dropZone');
@@ -337,7 +340,7 @@ const Upload = {
 
   stopTimer() {
     if (this.genTimer) { clearInterval(this.genTimer); this.genTimer = null; }
-    if (this.pollInterval) { clearInterval(this.pollInterval); this.pollInterval = null; } // NEW
+    if (this.pollInterval) { clearInterval(this.pollInterval); this.pollInterval = null; }
     const el = document.getElementById('timerDisplay');
     if (el) { el.classList.add('hidden'); el.textContent = '⏱ 2:00 remaining'; }
   },
@@ -398,7 +401,7 @@ const Upload = {
   },
 
   clear() {
-    if (this.pollInterval) { clearInterval(this.pollInterval); this.pollInterval = null; } // NEW
+    if (this.pollInterval) { clearInterval(this.pollInterval); this.pollInterval = null; }
     State.files = [];
     State.profilePic = null;
     const fi = document.getElementById('fileInput');
@@ -453,6 +456,12 @@ const Upload = {
     if (State.generating || State.files.length === 0) return;
     getAudio();
 
+    const usernameInput = document.getElementById('inUsername')?.value?.trim();
+    if (usernameInput) {
+      State.currentUsername = usernameInput;
+      State.save();
+    }
+
     const today = new Date().toDateString();
     const last = State.lastGen ? new Date(State.lastGen).toDateString() : null;
     if (last !== today) {
@@ -501,21 +510,24 @@ const Upload = {
       if (!res.ok) throw new Error(`Server ${res.status}`);
       const data = await res.json();
 
-      // ── QUEUED: start polling instead of hiding ──
       if (data.queued) {
         clearInterval(prog);
-        this._setProgress(50,'In review queue…','👨‍🔬 Admin is crafting your card');
-        if (queueMsg) queueMsg.classList.remove('hidden');
+        this._setProgress(50,'In review queue…','🤖 Our AI is crafting your card');
+        if (queueMsg) {
+          queueMsg.classList.remove('hidden');
+          queueMsg.textContent = '🤖 Our AI is crafting your card — please wait...';
+        }
 
         const uploadId = data.uploadId;
         let polls = 0;
-        const maxPolls = 120; // 6 minutes max
+        const maxPolls = 240;
 
         this.pollInterval = setInterval(async () => {
           polls++;
           try {
             const checkRes = await fetch(`${State.serverUrl}/api/check-card/${uploadId}`);
             const checkData = await checkRes.json();
+
             if (checkData.ready && checkData.card) {
               clearInterval(this.pollInterval);
               this.pollInterval = null;
@@ -544,10 +556,11 @@ const Upload = {
             window.onbeforeunload = null;
             toast('⏳ Taking longer than expected. Check your collection later!','info',5000);
             this.clear();
+            Navigation.go('collection');
           }
         }, 3000);
 
-        return; // Keep overlay open, polling handles the rest
+        return;
       }
 
       if (data.success && data.card) {
@@ -585,7 +598,7 @@ const Upload = {
 function delay(ms) { return new Promise(r => setTimeout(r, ms)); }
 
 // ============================================================
-// COLLECTION  ← Server sync
+// COLLECTION — Only show current user's cards
 // ============================================================
 const Collection = {
   activeFilter: 'all',
@@ -602,9 +615,11 @@ const Collection = {
     const grid = document.getElementById('cardsGrid');
     if (!grid) return;
 
+    const currentUser = State.currentUsername || document.getElementById('inUsername')?.value?.trim().toLowerCase() || '';
+
     let serverCards = [];
     try {
-      const res = await fetch(`${State.serverUrl}/api/cards`);
+      const res = await fetch(`${State.serverUrl}/api/user-cards?username=${encodeURIComponent(currentUser)}`);
       if (res.ok) {
         const d = await res.json();
         if (d.cards && Array.isArray(d.cards)) serverCards = d.cards;
@@ -615,7 +630,13 @@ const Collection = {
 
     const mergedMap = new Map();
     serverCards.forEach(c => mergedMap.set(c.id, c));
-    State.cards.forEach(c => mergedMap.set(c.id, c));
+
+    State.cards.forEach(c => {
+      const cardUser = c.username?.toLowerCase() || '';
+      if (!cardUser || cardUser === currentUser) {
+        mergedMap.set(c.id, c);
+      }
+    });
 
     const allCards = Array.from(mergedMap.values());
     State.cards = allCards;
@@ -1076,7 +1097,7 @@ const Admin = {
           <div class="pending-info">
             <h4>${u.username||'Anonymous'} <span style="font-size:0.75rem;color:var(--text3)">#${u.id}</span></h4>
             <div class="pending-meta">
-              📅 ${Util.fmtDate(u.timestamp)}<<br>
+              📅 ${Util.fmtDate(u.timestamp)}<br>
               📁 ${u.files.length} file(s)
               ${u.profileLink ? `<br>🔗 <a href="${u.profileLink}" target="_blank">${u.profileLink}</a>` : ''}
             </div>
