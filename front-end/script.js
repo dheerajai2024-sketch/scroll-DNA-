@@ -1,12 +1,6 @@
 /**
  * SCROLL DNA — script.js
- * Updated: bug fixes + 2-min timer + back buttons + improved admin UX
- * - Fixed Navigation inline-style conflicts
- * - Added 2-minute generation countdown timer
- * - Added beforeunload protection during generation
- * - Fixed admin login Enter key (event.key)
- * - Replaced annoying approve prompts with smooth Create Card hand-off
- * - Fixed legendary shimmer CSS selector bug
+ * Updated: Server card sync + backend property fix
  */
 
 'use strict';
@@ -157,9 +151,9 @@ const Util = {
 
   rollRarity() {
     const r = Math.random();
-    if (r<0.01)  return 'legendary';
-    if (r<0.08)  return 'epic';
-    if (r<0.30)  return 'rare';
+    if (r<<0.01)  return 'legendary';
+    if (r<<0.08)  return 'epic';
+    if (r<<0.30)  return 'rare';
     return 'common';
   },
 
@@ -228,7 +222,7 @@ function updateNavStats() {
 }
 
 // ============================================================
-// NAVIGATION  (FIXED: no inline styles, pure CSS class toggling)
+// NAVIGATION
 // ============================================================
 const Navigation = {
   go(pageId) {
@@ -273,7 +267,7 @@ const Landing = {
         const t = Math.min(1, (now-start)/duration);
         const ease = 1-Math.pow(1-t,3);
         el.textContent = fmt(Math.floor(ease*target));
-        if (t<1) requestAnimationFrame(tick);
+        if (t<<1) requestAnimationFrame(tick);
       };
       requestAnimationFrame(tick);
     });
@@ -418,7 +412,7 @@ const Upload = {
 
   async instant() {
     try {
-      getAudio(); // unlock audio context
+      getAudio();
       const res = await fetch(`${State.serverUrl}/api/instant-card`, { method:'POST' });
       const data = await res.json();
       if (data.success && data.card) {
@@ -426,7 +420,6 @@ const Upload = {
         return;
       }
     } catch(e) {}
-    // Fallback
     const card = Util.mockCard({ source:'instant' });
     this._receiveCard(card);
   },
@@ -457,7 +450,6 @@ const Upload = {
     if (State.generating || State.files.length === 0) return;
     getAudio();
 
-    // Streak logic
     const today = new Date().toDateString();
     const last = State.lastGen ? new Date(State.lastGen).toDateString() : null;
     if (last !== today) {
@@ -555,7 +547,7 @@ const Upload = {
 function delay(ms) { return new Promise(r => setTimeout(r, ms)); }
 
 // ============================================================
-// COLLECTION
+// COLLECTION  ← FIXED: fetches server cards
 // ============================================================
 const Collection = {
   activeFilter: 'all',
@@ -568,19 +560,40 @@ const Collection = {
     SFX.click();
   },
 
-  render() {
+  async render() {
     const grid = document.getElementById('cardsGrid');
     if (!grid) return;
 
-    // update header stats
+    // ── FIX: Fetch all cards from server and merge with localStorage ──
+    let serverCards = [];
+    try {
+      const res = await fetch(`${State.serverUrl}/api/cards`);
+      if (res.ok) {
+        const d = await res.json();
+        if (d.cards && Array.isArray(d.cards)) serverCards = d.cards;
+      }
+    } catch (e) {
+      console.log('Server cards fetch failed:', e);
+    }
+
+    // Merge: server cards first, then localStorage overrides (local has base64 images)
+    const mergedMap = new Map();
+    serverCards.forEach(c => mergedMap.set(c.id, c));
+    State.cards.forEach(c => mergedMap.set(c.id, c));
+
+    const allCards = Array.from(mergedMap.values());
+    State.cards = allCards;
+    State.save();
+
+    // Update header stats
     const t = document.getElementById('colTotal');
     const l = document.getElementById('colLegend');
     const p = document.getElementById('colPts');
-    if (t) t.textContent = State.cards.length;
-    if (l) l.textContent = State.cards.filter(c=>c.rarity==='legendary').length;
+    if (t) t.textContent = allCards.length;
+    if (l) l.textContent = allCards.filter(c => c.rarity === 'legendary').length;
     if (p) p.textContent = State.points.toLocaleString();
 
-    let cards = State.cards;
+    let cards = allCards;
     if (this.activeFilter !== 'all') cards = cards.filter(c => c.rarity === this.activeFilter);
 
     if (cards.length === 0) {
@@ -637,7 +650,6 @@ const Detail = {
     if (!card) return;
     const rd = card.rarityData || Util.getRarityData(card.rarity);
 
-    // HORIZONTAL TRADING CARD - Sports card style
     const canvas = document.getElementById('cardCanvas');
     const r = 2 * Math.PI * 32;
     const offset = r * (1 - card.score / 10);
@@ -646,7 +658,6 @@ const Detail = {
       ? `<div class="tc-left-avatar"><img src="${card.profilePicUrl}" alt=""></div>`
       : `<div class="tc-left-avatar"><div class="tc-left-avatar-placeholder">👤</div></div>`;
 
-    // Build all 6 stats as horizontal bars
     const statsEntries = Object.entries(card.stats || {});
     const statsTableHtml = statsEntries.map(([key, val]) => `
       <div class="tc-stat-row">
@@ -670,7 +681,6 @@ const Detail = {
           <div class="tc-corner bl"></div>
           <div class="tc-corner br"></div>
 
-          <!-- LEFT SIDE -->
           <div class="tc-left">
             ${avatarHtml}
             <div class="tc-left-score-ring">
@@ -686,7 +696,6 @@ const Detail = {
             <div class="tc-left-grade">${card.grade}</div>
           </div>
 
-          <!-- RIGHT SIDE -->
           <div class="tc-right">
             <div class="tc-right-header">
               <div class="tc-right-name">${card.name}</div>
@@ -711,14 +720,12 @@ const Detail = {
           <div class="tc-serial">#${serial}</div>
         </div>`;
 
-      // Animate ring
       setTimeout(() => {
         const ring = document.getElementById('scoreRing');
         if (ring) ring.style.strokeDashoffset = offset;
       }, 100);
     }
 
-    // Detail info panel (below card on page)
     const info = document.getElementById('detailInfo');
     if (info) {
       info.innerHTML = `
@@ -733,7 +740,6 @@ const Detail = {
         </div>`;
     }
 
-    // Stats breakdown panel (full bars below card)
     const sg = document.getElementById('statsGrid');
     if (sg) {
       sg.innerHTML = statsEntries.map(([key,val]) => `
@@ -776,7 +782,6 @@ const Detail = {
       const tc = document.getElementById('tradingCard');
       if (!tc) throw new Error('no card');
 
-      // Load html2canvas dynamically
       if (!window.html2canvas) {
         await new Promise((res,rej) => {
           const s = document.createElement('script');
@@ -788,8 +793,6 @@ const Detail = {
 
       toast('Capturing card…','info',2000);
 
-      // Create a wrapper with DARK background (matching the website)
-      // so the card looks exactly like it does on the site
       const wrapper = document.createElement('div');
       wrapper.style.cssText = `
         position: fixed; top: -9999px; left: -9999px;
@@ -799,10 +802,8 @@ const Detail = {
         padding: 60px;
       `;
 
-      // Clone the card into the wrapper
       const clone = tc.cloneNode(true);
       clone.style.transform = 'none';
-      // Enhanced glow for download - mirror/glass effect
       clone.style.boxShadow = `
         0 0 0 3px rgba(255,255,255,0.15),
         0 0 0 6px rgba(255,255,255,0.08),
@@ -833,7 +834,6 @@ const Detail = {
       toast('Card downloaded! 📥','success');
       SFX.success();
     } catch(e) {
-      // Fallback: download as JSON data
       const data = JSON.stringify(card, null, 2);
       const blob = new Blob([data],{type:'application/json'});
       const url = URL.createObjectURL(blob);
@@ -867,7 +867,7 @@ const Detail = {
 window.Detail = Detail;
 
 // ============================================================
-// ADMIN  (IMPROVED: no prompt spam, smooth Create Card hand-off)
+// ADMIN
 // ============================================================
 const Admin = {
   activeTab: 'pending',
@@ -1041,7 +1041,7 @@ const Admin = {
           <div class="pending-info">
             <h4>${u.username||'Anonymous'} <span style="font-size:0.75rem;color:var(--text3)">#${u.id}</span></h4>
             <div class="pending-meta">
-              📅 ${Util.fmtDate(u.timestamp)}<br>
+              📅 ${Util.fmtDate(u.timestamp)}<<br>
               📁 ${u.files.length} file(s)
               ${u.profileLink ? `<br>🔗 <a href="${u.profileLink}" target="_blank">${u.profileLink}</a>` : ''}
             </div>
@@ -1055,7 +1055,6 @@ const Admin = {
     } catch(e) { wrap.innerHTML = '<p style="color:#ef4444;padding:1rem">Error loading queue</p>'; }
   },
 
-  // IMPROVED: Instead of 7 prompts, hand off to Create Card tab with pre-filled data
   async approve(uploadId) {
     try {
       const res = await fetch(`${State.serverUrl}/api/admin/pending`,{headers:{'x-admin-auth':State.adminToken}});
@@ -1064,7 +1063,6 @@ const Admin = {
       if (!upload) { toast('Upload not found','error'); return; }
 
       this.pendingUploadId = uploadId;
-      // Switch to Create tab (index 3)
       const createTabBtn = document.querySelectorAll('.atab')[3];
       this.tab(createTabBtn, 'create');
 
@@ -1160,7 +1158,6 @@ const Admin = {
       }
     };
 
-    // If approving a pending upload, use the approve endpoint instead
     if (this.pendingUploadId) {
       try {
         const res = await fetch(`${State.serverUrl}/api/admin/pending/${this.pendingUploadId}/approve`,{
@@ -1182,7 +1179,6 @@ const Admin = {
       return;
     }
 
-    // Normal create
     try {
       const res = await fetch(`${State.serverUrl}/api/admin/cards`,{
         method:'POST',
@@ -1261,13 +1257,12 @@ function initParallax() {
 }
 
 // ============================================================
-// BOOTSTRAP  (FIXED: no inline styles, pure class toggling)
+// BOOTSTRAP
 // ============================================================
 function boot() {
   State.load();
   updateNavStats();
 
-  // Show landing page via CSS classes only
   document.querySelectorAll('.page').forEach(p => {
     p.classList.remove('active');
     p.classList.add('hidden');
@@ -1278,7 +1273,6 @@ function boot() {
     landing.classList.add('active');
   }
 
-  // Init modules
   Upload.init();
   PicUpload.init();
   initScrollAnimations();
