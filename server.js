@@ -736,6 +736,12 @@ app.get('/api/admin/stats', requireAdmin, (req, res) => {
 });
 
 // ==========================================
+// PUBLIC CARDS FEED (for users)
+// ==========================================
+app.get('/api/cards', (req, res) => {
+  res.json({ cards: cardsStore });
+});
+// ==========================================
 // START SERVER
 // ==========================================
 app.listen(PORT, () => {
