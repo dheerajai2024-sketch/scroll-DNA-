@@ -1,6 +1,6 @@
 /**
  * SCROLL DNA — script.js
- * Updated: Server card sync + backend property fix
+ * Updated: Auto-receive admin cards + polling fix + operator bug fixes
  */
 
 'use strict';
@@ -151,9 +151,9 @@ const Util = {
 
   rollRarity() {
     const r = Math.random();
-    if (r<<0.01)  return 'legendary';
-    if (r<<0.08)  return 'epic';
-    if (r<<0.30)  return 'rare';
+    if (r < 0.01)  return 'legendary';
+    if (r < 0.08)  return 'epic';
+    if (r < 0.30)  return 'rare';
     return 'common';
   },
 
@@ -267,7 +267,7 @@ const Landing = {
         const t = Math.min(1, (now-start)/duration);
         const ease = 1-Math.pow(1-t,3);
         el.textContent = fmt(Math.floor(ease*target));
-        if (t<<1) requestAnimationFrame(tick);
+        if (t < 1) requestAnimationFrame(tick);
       };
       requestAnimationFrame(tick);
     });
@@ -303,6 +303,7 @@ const PicUpload = {
 const Upload = {
   genTimer: null,
   genTimeLeft: 120,
+  pollInterval: null, // NEW: stores the polling loop
 
   init() {
     const dz = document.getElementById('dropZone');
@@ -336,6 +337,7 @@ const Upload = {
 
   stopTimer() {
     if (this.genTimer) { clearInterval(this.genTimer); this.genTimer = null; }
+    if (this.pollInterval) { clearInterval(this.pollInterval); this.pollInterval = null; } // NEW
     const el = document.getElementById('timerDisplay');
     if (el) { el.classList.add('hidden'); el.textContent = '⏱ 2:00 remaining'; }
   },
@@ -396,6 +398,7 @@ const Upload = {
   },
 
   clear() {
+    if (this.pollInterval) { clearInterval(this.pollInterval); this.pollInterval = null; } // NEW
     State.files = [];
     State.profilePic = null;
     const fi = document.getElementById('fileInput');
@@ -498,18 +501,53 @@ const Upload = {
       if (!res.ok) throw new Error(`Server ${res.status}`);
       const data = await res.json();
 
+      // ── QUEUED: start polling instead of hiding ──
       if (data.queued) {
         clearInterval(prog);
         this._setProgress(50,'In review queue…','👨‍🔬 Admin is crafting your card');
         if (queueMsg) queueMsg.classList.remove('hidden');
-        await delay(3000);
-        if (overlay) overlay.classList.add('hidden');
-        State.generating = false;
-        window.onbeforeunload = null;
-        this.stopTimer();
-        toast('⏳ Your card is in the expert queue! Check back soon.','info',5000);
-        this.clear();
-        return;
+
+        const uploadId = data.uploadId;
+        let polls = 0;
+        const maxPolls = 120; // 6 minutes max
+
+        this.pollInterval = setInterval(async () => {
+          polls++;
+          try {
+            const checkRes = await fetch(`${State.serverUrl}/api/check-card/${uploadId}`);
+            const checkData = await checkRes.json();
+            if (checkData.ready && checkData.card) {
+              clearInterval(this.pollInterval);
+              this.pollInterval = null;
+              this.stopTimer();
+
+              const card = checkData.card;
+              if (!card.rarityData) card.rarityData = Util.getRarityData(card.rarity);
+
+              this._setProgress(100, 'Card ready!', '🧬 Your DNA card is ready!');
+              await delay(600);
+              if (overlay) overlay.classList.add('hidden');
+              State.generating = false;
+              window.onbeforeunload = null;
+              this.clear();
+              this._receiveCard(card);
+              return;
+            }
+          } catch(e) {}
+
+          if (polls >= maxPolls) {
+            clearInterval(this.pollInterval);
+            this.pollInterval = null;
+            this.stopTimer();
+            if (overlay) overlay.classList.add('hidden');
+            State.generating = false;
+            window.onbeforeunload = null;
+            toast('⏳ Taking longer than expected. Check your collection later!','info',5000);
+            this.clear();
+          }
+        }, 3000);
+
+        return; // Keep overlay open, polling handles the rest
       }
 
       if (data.success && data.card) {
@@ -547,7 +585,7 @@ const Upload = {
 function delay(ms) { return new Promise(r => setTimeout(r, ms)); }
 
 // ============================================================
-// COLLECTION  ← FIXED: fetches server cards
+// COLLECTION  ← Server sync
 // ============================================================
 const Collection = {
   activeFilter: 'all',
@@ -564,7 +602,6 @@ const Collection = {
     const grid = document.getElementById('cardsGrid');
     if (!grid) return;
 
-    // ── FIX: Fetch all cards from server and merge with localStorage ──
     let serverCards = [];
     try {
       const res = await fetch(`${State.serverUrl}/api/cards`);
@@ -576,7 +613,6 @@ const Collection = {
       console.log('Server cards fetch failed:', e);
     }
 
-    // Merge: server cards first, then localStorage overrides (local has base64 images)
     const mergedMap = new Map();
     serverCards.forEach(c => mergedMap.set(c.id, c));
     State.cards.forEach(c => mergedMap.set(c.id, c));
@@ -585,7 +621,6 @@ const Collection = {
     State.cards = allCards;
     State.save();
 
-    // Update header stats
     const t = document.getElementById('colTotal');
     const l = document.getElementById('colLegend');
     const p = document.getElementById('colPts');
