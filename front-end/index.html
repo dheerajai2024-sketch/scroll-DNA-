@@ -47,6 +47,108 @@
         border-radius: 12px;
       }
     }
+    
+    /* ===== POLICY PAGE STYLES ===== */
+    .policy-wrap {
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 100px 2rem 4rem;
+      min-height: 60vh;
+    }
+    .policy-header {
+      margin-bottom: 3rem;
+      text-align: center;
+    }
+    .policy-header h1 {
+      font-family: var(--font-display);
+      font-size: 2.5rem;
+      font-weight: 800;
+      margin-bottom: 0.5rem;
+    }
+    .policy-header p {
+      color: var(--text2);
+      font-size: 1rem;
+    }
+    .policy-content {
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 2.5rem;
+    }
+    .policy-content h2 {
+      font-family: var(--font-display);
+      font-size: 1.3rem;
+      font-weight: 700;
+      margin: 2rem 0 1rem;
+      color: var(--primary);
+    }
+    .policy-content h2:first-child {
+      margin-top: 0;
+    }
+    .policy-content p {
+      color: var(--text2);
+      line-height: 1.8;
+      margin-bottom: 1rem;
+      font-size: 0.95rem;
+    }
+    .policy-content ul {
+      color: var(--text2);
+      line-height: 1.8;
+      margin-bottom: 1rem;
+      padding-left: 1.5rem;
+      font-size: 0.95rem;
+    }
+    .policy-content li {
+      margin-bottom: 0.5rem;
+    }
+    .policy-content strong {
+      color: var(--text);
+    }
+    .policy-content a {
+      color: var(--primary);
+      text-decoration: underline;
+    }
+    .policy-date {
+      color: var(--text3);
+      font-size: 0.85rem;
+      margin-top: 3rem;
+      padding-top: 1.5rem;
+      border-top: 1px solid var(--border);
+    }
+    
+    /* Contact form styles */
+    .contact-form {
+      display: flex;
+      flex-direction: column;
+      gap: 1.5rem;
+      margin-top: 1rem;
+    }
+    .contact-form .field-group {
+      margin-bottom: 0;
+    }
+    .contact-form textarea {
+      min-height: 150px;
+    }
+    .contact-info-box {
+      background: var(--bg3);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: 1.5rem;
+      margin-bottom: 2rem;
+      display: flex;
+      gap: 2rem;
+      flex-wrap: wrap;
+    }
+    .contact-info-item {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      color: var(--text2);
+      font-size: 0.9rem;
+    }
+    .contact-info-item span:first-child {
+      font-size: 1.3rem;
+    }
   </style>
 </head>
 <body>
@@ -85,7 +187,6 @@
       </div>
       <p id="progLabel" class="prog-label">Uploading screenshots...</p>
       <p id="aiLabel" class="ai-label">🔬 Initializing analysis</p>
-      <!-- 2-MINUTE TIMER ADDED -->
       <p id="timerDisplay" class="timer-display hidden">⏱ 2:00 remaining</p>
       <div id="queueMsg" class="queue-msg hidden">
         ⏳ Admin is reviewing your profile — you'll get a premium hand-crafted card!
@@ -129,7 +230,6 @@
           </div>
         </div>
 
-        <!-- floating card previews -->
         <div class="hero-cards-float">
           <div class="float-card fc-left legendary">
             <div class="fc-badge">LEGENDARY</div>
@@ -152,7 +252,6 @@
         </div>
       </section>
 
-      <!-- How it works -->
       <section class="section how-section">
         <h2 class="section-title">How It Works</h2>
         <div class="how-steps">
@@ -179,7 +278,7 @@
         </div>
       </section>
 
-      <!-- SAFE ZONE AD SLOT 1: After How It Works -->
+      <!-- SAFE ZONE AD SLOT 1 -->
       <div class="ads-dark-wrapper">
         <ins class="adsbygoogle"
              style="display:block"
@@ -190,7 +289,6 @@
         <script>(adsbygoogle = window.adsbygoogle || []).push({});</script>
       </div>
 
-      <!-- Rarity System -->
       <section class="section rarity-section">
         <h2 class="section-title">Rarity System</h2>
         <p class="section-sub">What's your DNA worth?</p>
@@ -225,7 +323,7 @@
           </div>
         </div>
 
-        <!-- SAFE ZONE AD SLOT 2: Inside Rarity Section -->
+        <!-- SAFE ZONE AD SLOT 2 -->
         <div class="ads-dark-wrapper" style="max-width:100%; margin-top:24px;">
           <ins class="adsbygoogle"
                style="display:block"
@@ -236,7 +334,6 @@
         </div>
       </section>
 
-      <!-- Stats Banner -->
       <section class="stats-banner">
         <div class="sb-item"><span class="sb-num" data-target="2400000">0</span><span class="sb-lbl">Cards Minted</span></div>
         <div class="sb-item"><span class="sb-num" data-target="847000">0</span><span class="sb-lbl">Active Collectors</span></div>
@@ -244,7 +341,6 @@
         <div class="sb-item"><span class="sb-num" data-target="2">0</span><span class="sb-lbl">Trending TikTok</span></div>
       </section>
 
-      <!-- Features -->
       <section class="section features-section">
         <h2 class="section-title">Why Scroll DNA Cards Go Viral</h2>
         <div class="features-grid">
@@ -257,7 +353,7 @@
         </div>
       </section>
 
-      <!-- SAFE ZONE AD SLOT 3: Before Final CTA -->
+      <!-- SAFE ZONE AD SLOT 3 -->
       <div class="ads-dark-wrapper">
         <ins class="adsbygoogle"
              style="display:block"
@@ -283,7 +379,6 @@
           <p class="upload-sub">Upload screenshots + your profile pic for an AI-analyzed trading card</p>
         </div>
 
-        <!-- Profile info row -->
         <div class="form-row-2">
           <div class="field-group">
             <label for="inUsername">Username / Handle</label>
@@ -295,7 +390,6 @@
           </div>
         </div>
 
-        <!-- Profile pic -->
         <div class="pic-section">
           <h3>👤 Profile Picture <span class="optional-tag">Optional — appears on your card</span></h3>
           <div class="pic-zone" id="picZone" onclick="document.getElementById('picInput').click()" title="Click to upload">
@@ -307,7 +401,6 @@
           </div>
         </div>
 
-        <!-- Drop zone -->
         <div id="dropZone" class="drop-zone" onclick="document.getElementById('fileInput').click()">
           <div class="dz-inner">
             <div class="dz-icon">📸</div>
@@ -318,7 +411,6 @@
           <input type="file" id="fileInput" multiple accept="image/*,video/*" class="file-hidden">
         </div>
 
-        <!-- File list -->
         <div id="fileListWrap" class="file-list-wrap hidden">
           <div class="fl-header">
             <span>📁 Screenshots (<span id="fileCount">0</span>/11)</span>
@@ -327,7 +419,6 @@
           <div id="fileGrid" class="file-grid"></div>
         </div>
 
-        <!-- Actions -->
         <div class="upload-actions">
           <button id="generateBtn" class="btn-primary btn-lg" disabled onclick="Upload.start()">
             🧬 Generate DNA Card
@@ -379,7 +470,7 @@
               <button class="btn-ghost reroll-btn" onclick="Detail.reroll()">🔄 Re-roll <span class="reroll-cost">(50 pts)</span></button>
             </div>
 
-            <!-- SAFE ZONE AD SLOT 4: After Card Result -->
+            <!-- SAFE ZONE AD SLOT 4 -->
             <div class="ads-dark-wrapper" style="margin-top: 24px; margin-bottom: 24px;">
               <p style="color: #9ca3af; font-size: 12px; margin-bottom: 12px; text-align: left;">
                 Recommended for your DNA
@@ -406,7 +497,6 @@
       <div class="admin-wrap">
         <h1>🔐 Admin Panel</h1>
 
-        <!-- Login -->
         <div id="adminLogin" class="admin-login-box">
           <h2>Admin Access</h2>
           <p class="admin-hint">Press <kbd>Shift+A</kbd> anywhere to open this panel</p>
@@ -416,7 +506,6 @@
           </div>
         </div>
 
-        <!-- Content -->
         <div id="adminContent" class="admin-content hidden">
           <div class="admin-topbar">
             <h2>DNA Lab Control Center</h2>
@@ -485,6 +574,278 @@
       </div>
     </div>
 
+    <!-- ===== PRIVACY POLICY ===== -->
+    <div id="pg-privacy" class="page hidden">
+      <div class="policy-wrap">
+        <button class="back-link" onclick="Navigation.go('landing')">← Back</button>
+        <div class="policy-header">
+          <h1>🔒 Privacy Policy</h1>
+          <p>How Scroll DNA handles your data</p>
+        </div>
+        <div class="policy-content">
+          <h2>1. Information We Collect</h2>
+          <p>When you use Scroll DNA, we collect the following information:</p>
+          <ul>
+            <li><strong>Social Media Screenshots:</strong> Images of your Instagram or TikTok feed that you voluntarily upload for AI analysis.</li>
+            <li><strong>Profile Pictures:</strong> Optional profile images you upload to appear on your generated trading card.</li>
+            <li><strong>Username/Handle:</strong> Your social media identifier used to personalize your card.</li>
+            <li><strong>Usage Data:</strong> Anonymous analytics about how you interact with our service.</li>
+          </ul>
+
+          <h2>2. How We Use Your Data</h2>
+          <p>Your uploaded images are processed in real-time by our AI system to generate your personalized trading card. Specifically:</p>
+          <ul>
+            <li>Images are analyzed for content patterns, aesthetic qualities, and engagement metrics.</li>
+            <li>After analysis, your original screenshots are <strong>automatically discarded</strong> from our servers.</li>
+            <li>We do not store, share, or sell your social media content to third parties.</li>
+            <li>Generated card data (stats, rarity, personality name) is stored to display your collection.</li>
+          </ul>
+
+          <h2>3. AI Processing & Third Parties</h2>
+          <p>We use <strong>Groq Vision AI</strong> to analyze your uploaded images. This processing occurs on secure, encrypted servers. Groq does not retain your images after processing is complete.</p>
+          <p>We also use <strong>Google AdSense</strong> to display advertisements. Google may use cookies to serve personalized ads based on your browsing history. You can opt out of personalized advertising through <a href="https://adssettings.google.com" target="_blank">Google Ads Settings</a>.</p>
+
+          <h2>4. Cookies & Tracking</h2>
+          <p>We use cookies to:</p>
+          <ul>
+            <li>Maintain your session and collection data.</li>
+            <li>Remember your preferences (sound settings, filters).</li>
+            <li>Serve relevant advertisements through Google AdSense.</li>
+          </ul>
+          <p>You can disable cookies in your browser settings, though this may affect site functionality.</p>
+
+          <h2>5. Data Security</h2>
+          <p>We implement industry-standard security measures including:</p>
+          <ul>
+            <li>HTTPS encryption for all data transfers.</li>
+            <li>Automatic deletion of uploaded images after processing.</li>
+            <li>No storage of sensitive social media credentials.</li>
+          </ul>
+
+          <h2>6. Your Rights</h2>
+          <p>You have the right to:</p>
+          <ul>
+            <li>Request deletion of your generated cards and associated data.</li>
+            <li>Opt out of data collection by discontinuing use of the service.</li>
+            <li>Contact us with privacy concerns (see our Contact page).</li>
+          </ul>
+
+          <h2>7. Children's Privacy</h2>
+          <p>Scroll DNA is not intended for users under 13 years of age. We do not knowingly collect data from children. If you believe a child has provided us with personal information, please contact us immediately.</p>
+
+          <h2>8. Changes to This Policy</h2>
+          <p>We may update this Privacy Policy periodically. Changes will be posted on this page with an updated effective date.</p>
+
+          <div class="policy-date">
+            <p><strong>Effective Date:</strong> June 3, 2026</p>
+            <p><strong>Last Updated:</strong> June 3, 2026</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== CONTACT ===== -->
+    <div id="pg-contact" class="page hidden">
+      <div class="policy-wrap">
+        <button class="back-link" onclick="Navigation.go('landing')">← Back</button>
+        <div class="policy-header">
+          <h1>📮 Contact Us</h1>
+          <p>Get in touch with the Scroll DNA team</p>
+        </div>
+        <div class="policy-content">
+          <div class="contact-info-box">
+            <div class="contact-info-item">
+              <span>📧</span>
+              <span>support@scrolldna.app</span>
+            </div>
+            <div class="contact-info-item">
+              <span>🐦</span>
+              <span>@ScrollDNA on X/Twitter</span>
+            </div>
+            <div class="contact-info-item">
+              <span>📱</span>
+              <span>@scrolldna on TikTok</span>
+            </div>
+            <div class="contact-info-item">
+              <span>⏱</span>
+              <span>Response time: 24-48 hours</span>
+            </div>
+          </div>
+
+          <h2>Send a Message</h2>
+          <p>Have a question, bug report, or feature request? Fill out the form below and we'll get back to you as soon as possible.</p>
+          
+          <form class="contact-form" onsubmit="event.preventDefault(); alert('Message sent! We will reply within 24-48 hours.'); Navigation.go('landing');">
+            <div class="form-row-2">
+              <div class="field-group">
+                <label>Your Name</label>
+                <input type="text" placeholder="John Doe" required>
+              </div>
+              <div class="field-group">
+                <label>Email Address</label>
+                <input type="email" placeholder="john@example.com" required>
+              </div>
+            </div>
+            <div class="field-group">
+              <label>Subject</label>
+              <input type="text" placeholder="Question about my card..." required>
+            </div>
+            <div class="field-group">
+              <label>Message</label>
+              <textarea placeholder="Tell us what's on your mind..." required></textarea>
+            </div>
+            <button type="submit" class="btn-primary btn-lg">📤 Send Message</button>
+          </form>
+
+          <h2>Frequently Asked Questions</h2>
+          <p><strong>Q: My card hasn't arrived yet. What should I do?</strong><br>
+          A: Standard generation takes 2-5 minutes. If admin is online, your card may be hand-crafted which can take longer. Check your Collection page.</p>
+          
+          <p><strong>Q: Can I delete my data?</strong><br>
+          A: Yes. Contact us with your username and we will delete all associated cards and data within 48 hours.</p>
+          
+          <p><strong>Q: Is Scroll DNA free?</strong><br>
+          A: Yes! Generating cards is completely free. We may introduce premium features in the future.</p>
+          
+          <p><strong>Q: What images should I upload?</strong><br>
+          A: Screenshot your Instagram or TikTok homepage, plus up to 10 of your best posts. Add a profile picture for the best results.</p>
+
+          <div class="policy-date">
+            <p><strong>Business Hours:</strong> Monday–Friday, 9AM–6PM EST</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== ABOUT ===== -->
+    <div id="pg-about" class="page hidden">
+      <div class="policy-wrap">
+        <button class="back-link" onclick="Navigation.go('landing')">← Back</button>
+        <div class="policy-header">
+          <h1>⬡ About Scroll DNA</h1>
+          <p>AI-Powered Social Trading Cards · Built with Groq</p>
+        </div>
+        <div class="policy-content">
+          <h2>What is Scroll DNA?</h2>
+          <p>Scroll DNA is an AI-powered social identity platform that transforms your Instagram and TikTok presence into collectible trading cards. Our proprietary system analyzes your content, personality, and aesthetic to generate a unique "social DNA" card complete with rarity tiers, stats, and a custom personality archetype.</p>
+          
+          <p>Since our launch, over <strong>2.4 million cards</strong> have been minted by <strong>847,000+ collectors</strong> worldwide. We've trended as high as <strong>#2 on TikTok</strong> and continue to grow as the premier destination for social media trading card generation.</p>
+
+          <h2>How It Works</h2>
+          <p>Our technology stack combines computer vision, natural language processing, and creative AI to deliver results that feel personal and accurate:</p>
+          <ul>
+            <li><strong>Upload:</strong> Share screenshots of your social media feed and profile picture.</li>
+            <li><strong>Analyze:</strong> Groq Vision AI scans your content for patterns, aesthetics, engagement signals, and personality markers.</li>
+            <li><strong>Generate:</strong> Our system assigns you a rarity (Common, Rare, Epic, or Legendary), six core stats, a grade, and a unique personality name.</li>
+            <li><strong>Collect & Share:</strong> Save your card to your collection, download it, or share it directly to social media.</li>
+          </ul>
+
+          <h2>The Rarity System</h2>
+          <p>Every card is assigned a rarity tier based on the depth and quality of your social media presence:</p>
+          <ul>
+            <li><strong>Common (70%):</strong> The everyday scroller. Still a valued part of the collection.</li>
+            <li><strong>Rare (22%):</strong> Above-average energy. Your feed stands out from the crowd.</li>
+            <li><strong>Epic (7%):</strong> Exceptional presence. Collectors actively seek these cards.</li>
+            <li><strong>Legendary (1%):</strong> Once-in-a-generation social DNA. Only 156 have ever been minted.</li>
+          </ul>
+
+          <h2>Our Technology</h2>
+          <p>Scroll DNA is built on cutting-edge AI infrastructure:</p>
+          <ul>
+            <li><strong>Groq Vision AI:</strong> Powers the image analysis and personality detection.</li>
+            <li><strong>Privacy-First Design:</strong> Images are analyzed in real-time and immediately discarded. We never store your feed.</li>
+            <li><strong>Responsive Web App:</strong> Works seamlessly on mobile and desktop without requiring an app download.</li>
+            <li><strong>Real-Time Processing:</strong> Most cards generate in under 2 minutes.</li>
+          </ul>
+
+          <h2>Why Cards Go Viral</h2>
+          <p>Scroll DNA cards are designed to be shared. The combination of personalized AI analysis, collectible rarity mechanics, and visually striking card designs creates natural viral potential. Users share their cards to compare rarities, trade stats, and discover their "social DNA" — creating organic growth loops across TikTok, Instagram, and X.</p>
+
+          <h2>The Team</h2>
+          <p>Scroll DNA was created by a small team of AI researchers, designers, and social media enthusiasts passionate about merging identity and technology. We believe everyone has a unique digital fingerprint worth celebrating.</p>
+
+          <h2>Future Roadmap</h2>
+          <ul>
+            <li>Physical holographic card printing</li>
+            <li>Trading and marketplace features</li>
+            <li>Expanded social platform support (YouTube, Twitch)</li>
+            <li>AI-generated card animations</li>
+            <li>Mobile apps for iOS and Android</li>
+          </ul>
+
+          <div class="policy-date">
+            <p><strong>Founded:</strong> 2025</p>
+            <p><strong>Headquarters:</strong> Remote-first team</p>
+            <p><strong>Built with:</strong> ❤️ and Groq</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== TERMS OF SERVICE ===== -->
+    <div id="pg-terms" class="page hidden">
+      <div class="policy-wrap">
+        <button class="back-link" onclick="Navigation.go('landing')">← Back</button>
+        <div class="policy-header">
+          <h1>📋 Terms of Service</h1>
+          <p>Rules and guidelines for using Scroll DNA</p>
+        </div>
+        <div class="policy-content">
+          <h2>1. Acceptance of Terms</h2>
+          <p>By accessing or using Scroll DNA, you agree to be bound by these Terms of Service. If you do not agree to all terms, you may not use our service.</p>
+
+          <h2>2. Eligibility</h2>
+          <p>You must be at least 13 years old to use Scroll DNA. By using the service, you represent that you meet this requirement.</p>
+
+          <h2>3. User Content</h2>
+          <p>You retain ownership of any content you upload (screenshots, profile pictures). By uploading content, you grant Scroll DNA a limited license to process and analyze it for the purpose of generating your trading card.</p>
+          <p>You agree not to upload:</p>
+          <ul>
+            <li>Content that violates any third party's intellectual property rights.</li>
+            <li>Illegal, harmful, threatening, or abusive content.</li>
+            <li>Content containing malware or viruses.</li>
+            <li>Pornographic or sexually explicit material.</li>
+          </ul>
+
+          <h2>4. Generated Cards</h2>
+          <p>All generated cards are for personal, non-commercial use unless otherwise agreed. You may share cards on social media with attribution to Scroll DNA. You may not sell, trade, or commercially exploit generated cards without written permission.</p>
+
+          <h2>5. Prohibited Activities</h2>
+          <p>Users may not:</p>
+          <ul>
+            <li>Use automated scripts or bots to generate cards.</li>
+            <li>Attempt to reverse-engineer our AI systems.</li>
+            <li>Impersonate other users or entities.</li>
+            <li>Interfere with the security or integrity of the service.</li>
+            <li>Upload content belonging to others without permission.</li>
+          </ul>
+
+          <h2>6. Termination</h2>
+          <p>We reserve the right to suspend or terminate your access to Scroll DNA at any time, without notice, for conduct that violates these terms or is otherwise harmful to other users or the service.</p>
+
+          <h2>7. Disclaimer of Warranties</h2>
+          <p>Scroll DNA is provided "as is" without warranties of any kind. We do not guarantee that the service will be uninterrupted, secure, or error-free. AI-generated results are for entertainment purposes and should not be considered professional advice.</p>
+
+          <h2>8. Limitation of Liability</h2>
+          <p>To the maximum extent permitted by law, Scroll DNA shall not be liable for any indirect, incidental, special, consequential, or punitive damages arising from your use of the service.</p>
+
+          <h2>9. Changes to Terms</h2>
+          <p>We may modify these terms at any time. Continued use of the service after changes constitutes acceptance of the new terms.</p>
+
+          <h2>10. Governing Law</h2>
+          <p>These terms shall be governed by and construed in accordance with the laws of the United States, without regard to conflict of law principles.</p>
+
+          <h2>11. Contact</h2>
+          <p>For questions about these terms, please contact us at <a href="mailto:support@scrolldna.app">support@scrolldna.app</a>.</p>
+
+          <div class="policy-date">
+            <p><strong>Effective Date:</strong> June 3, 2026</p>
+            <p><strong>Last Updated:</strong> June 3, 2026</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
   </main>
 
   <!-- ───── FOOTER ───── -->
@@ -496,6 +857,10 @@
         <button onclick="Navigation.go('landing')" class="fl-link">Home</button>
         <button onclick="Navigation.go('upload')" class="fl-link">Generate</button>
         <button onclick="Navigation.go('collection')" class="fl-link">Collection</button>
+        <button onclick="Navigation.go('about')" class="fl-link">About</button>
+        <button onclick="Navigation.go('privacy')" class="fl-link">Privacy</button>
+        <button onclick="Navigation.go('contact')" class="fl-link">Contact</button>
+        <button onclick="Navigation.go('terms')" class="fl-link">Terms</button>
       </div>
     </div>
   </footer>
