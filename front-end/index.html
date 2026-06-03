@@ -11,7 +11,43 @@
   <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:ital,wght@0,300;0,400;0,500;0,600;1,400&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="styles.css">
   <base target="_blank">
-<base target="_blank">
+  
+  <!-- ===== DARK ADSENSE STYLES (NON-INTRUSIVE) ===== -->
+  <style>
+    .ads-dark-wrapper {
+      background: #0a0a0f;
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      border-radius: 16px;
+      padding: 20px;
+      margin: 40px auto;
+      max-width: 700px;
+      text-align: center;
+      position: relative;
+    }
+    .ads-dark-wrapper::before {
+      content: "Sponsored";
+      display: block;
+      font-family: 'Syne', 'DM Sans', -apple-system, sans-serif;
+      font-size: 10px;
+      font-weight: 600;
+      color: #6b7280;
+      text-transform: uppercase;
+      letter-spacing: 1.5px;
+      margin-bottom: 12px;
+      text-align: left;
+    }
+    .ads-dark-wrapper ins.adsbygoogle {
+      background: transparent !important;
+      display: block;
+    }
+    @media (max-width: 640px) {
+      .ads-dark-wrapper {
+        margin: 24px 12px;
+        padding: 16px;
+        border-radius: 12px;
+      }
+    }
+  </style>
 </head>
 <body>
 <div id="app">
@@ -143,6 +179,17 @@
         </div>
       </section>
 
+      <!-- SAFE ZONE AD SLOT 1: After How It Works -->
+      <div class="ads-dark-wrapper">
+        <ins class="adsbygoogle"
+             style="display:block"
+             data-ad-client="ca-pub-7556221789436638"
+             data-ad-slot="REPLACE_WITH_YOUR_SLOT_1_ID"
+             data-ad-format="fluid"
+             data-ad-layout-key="-fb+5w+4e-db+86"></ins>
+        <script>(adsbygoogle = window.adsbygoogle || []).push({});</script>
+      </div>
+
       <!-- Rarity System -->
       <section class="section rarity-section">
         <h2 class="section-title">Rarity System</h2>
@@ -177,6 +224,16 @@
             <div class="ri-desc">Once-in-a-generation social DNA. Frame it.</div>
           </div>
         </div>
+
+        <!-- SAFE ZONE AD SLOT 2: Inside Rarity Section -->
+        <div class="ads-dark-wrapper" style="max-width:100%; margin-top:24px;">
+          <ins class="adsbygoogle"
+               style="display:block"
+               data-ad-client="ca-pub-7556221789436638"
+               data-ad-slot="REPLACE_WITH_YOUR_SLOT_2_ID"
+               data-ad-format="autorelaxed"></ins>
+          <script>(adsbygoogle = window.adsbygoogle || []).push({});</script>
+        </div>
       </section>
 
       <!-- Stats Banner -->
@@ -199,6 +256,17 @@
           <div class="feat"><span class="feat-icon">⚡</span><h3>Instant Option</h3><p>No screenshots? Hit Instant Card for a randomized pull in seconds.</p></div>
         </div>
       </section>
+
+      <!-- SAFE ZONE AD SLOT 3: Before Final CTA -->
+      <div class="ads-dark-wrapper">
+        <ins class="adsbygoogle"
+             style="display:block"
+             data-ad-client="ca-pub-7556221789436638"
+             data-ad-slot="REPLACE_WITH_YOUR_SLOT_3_ID"
+             data-ad-format="fluid"
+             data-ad-layout-key="-6t+ed+2i-1n-4w"></ins>
+        <script>(adsbygoogle = window.adsbygoogle || []).push({});</script>
+      </div>
 
       <div class="landing-cta-bar">
         <button class="btn-primary btn-xl" onclick="Navigation.go('upload')">🧬 Generate Your Card — It's Free</button>
@@ -310,6 +378,20 @@
               <button class="btn-ghost" onclick="Detail.download()">📥 Download</button>
               <button class="btn-ghost reroll-btn" onclick="Detail.reroll()">🔄 Re-roll <span class="reroll-cost">(50 pts)</span></button>
             </div>
+
+            <!-- SAFE ZONE AD SLOT 4: After Card Result -->
+            <div class="ads-dark-wrapper" style="margin-top: 24px; margin-bottom: 24px;">
+              <p style="color: #9ca3af; font-size: 12px; margin-bottom: 12px; text-align: left;">
+                Recommended for your DNA
+              </p>
+              <ins class="adsbygoogle"
+                   style="display:block"
+                   data-ad-client="ca-pub-7556221789436638"
+                   data-ad-slot="REPLACE_WITH_YOUR_SLOT_4_ID"
+                   data-ad-format="autorelaxed"></ins>
+              <script>(adsbygoogle = window.adsbygoogle || []).push({});</script>
+            </div>
+
             <div class="stats-section-detail">
               <h3>Stats Breakdown</h3>
               <div id="statsGrid" class="stats-grid"></div>
@@ -329,7 +411,6 @@
           <h2>Admin Access</h2>
           <p class="admin-hint">Press <kbd>Shift+A</kbd> anywhere to open this panel</p>
           <div class="login-row">
-            <!-- FIX: event.key instead of e.key -->
             <input type="password" id="adminPw" placeholder="Admin password" onkeypress="if(event.key==='Enter')Admin.login()">
             <button class="btn-primary" onclick="Admin.login()">Login</button>
           </div>
@@ -340,7 +421,6 @@
           <div class="admin-topbar">
             <h2>DNA Lab Control Center</h2>
             <div class="admin-topbar-right">
-              <!-- BACK BUTTON ADDED -->
               <button class="btn-ghost btn-sm" onclick="Navigation.go('landing')">← Back</button>
               <button id="onlineToggle" class="admin-mode-btn online" onclick="Admin.toggleOnline()">🟢 Online</button>
               <button class="btn-ghost btn-sm" onclick="Admin.logout()">Logout</button>

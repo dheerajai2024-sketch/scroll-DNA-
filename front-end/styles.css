@@ -41,6 +41,46 @@
   --font-body: 'DM Sans', sans-serif;
 }
 
+/* =============================================
+   DARK ADSENSE WRAPPER (Non-Intrusive)
+   ============================================= */
+.ads-dark-wrapper {
+  background: #0a0a0f;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 16px;
+  padding: 20px;
+  margin: 40px auto;
+  max-width: 700px;
+  text-align: center;
+  position: relative;
+}
+
+.ads-dark-wrapper::before {
+  content: "Sponsored";
+  display: block;
+  font-family: 'Syne', 'DM Sans', -apple-system, sans-serif;
+  font-size: 10px;
+  font-weight: 600;
+  color: #6b7280;
+  text-transform: uppercase;
+  letter-spacing: 1.5px;
+  margin-bottom: 12px;
+  text-align: left;
+}
+
+.ads-dark-wrapper ins.adsbygoogle {
+  background: transparent !important;
+  display: block;
+}
+
+@media (max-width: 640px) {
+  .ads-dark-wrapper {
+    margin: 24px 12px;
+    padding: 16px;
+    border-radius: 12px;
+  }
+}
+
 /* ── Reset ── */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 html { scroll-behavior: smooth; }
