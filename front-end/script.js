@@ -1341,10 +1341,3 @@ if (document.readyState === 'loading') {
 } else {
   boot();
 }
-const Navigation = {
-  go(pageId) {
-    document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
-    document.getElementById('pg-' + pageId).classList.add('active');
-    window.scrollTo(0, 0);
-  }
-};
