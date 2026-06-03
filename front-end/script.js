@@ -225,25 +225,34 @@ function updateNavStats() {
 }
 
 // ============================================================
-// NAVIGATION
+// NAVIGATION — FIXED FOR NEW PAGES
 // ============================================================
 const Navigation = {
   go(pageId) {
     if (State.generating && pageId !== 'detail') {
       toast('Generation in progress — please wait', 'info'); return;
     }
+    
+    // Hide all pages
     document.querySelectorAll('.page').forEach(p => {
       p.classList.remove('active');
       p.classList.add('hidden');
     });
+    
+    // Show target page
     const target = document.getElementById('pg-' + pageId);
-    if (!target) return;
+    if (!target) {
+      console.error('Page not found: pg-' + pageId);
+      return;
+    }
     target.classList.remove('hidden');
     requestAnimationFrame(() => target.classList.add('active'));
+    
     State.page = pageId;
-    window.scrollTo({ top:0, behavior:'smooth' });
+    window.scrollTo({ top: 0, behavior: 'smooth' });
     SFX.click();
 
+    // Init page-specific content
     if (pageId === 'landing')    Landing.init();
     if (pageId === 'collection') Collection.render();
     if (pageId === 'detail')     Detail.render();
