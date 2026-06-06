@@ -1,6 +1,6 @@
 /**
  * SCROLL DNA — script.js
- * Updated: Auto-receive admin cards + user-only collection + text fixes
+ * Updated: Auto-receive admin cards + user-only collection + 2-card limit per user
  */
 
 'use strict';
@@ -46,6 +46,23 @@ const State = {
     localStorage.setItem('sdna_username', this.currentUsername);
   }
 };
+
+// ============================================================
+// CARD LIMIT HELPERS
+// ============================================================
+function getUserCardCount() {
+  const currentUser = State.currentUsername.toLowerCase().trim();
+  if (!currentUser) return State.cards.length;
+  
+  return State.cards.filter(c => {
+    const cardUser = (c.username || '').toLowerCase().trim();
+    return !cardUser || cardUser === currentUser;
+  }).length;
+}
+
+function canGenerateCard() {
+  return getUserCardCount() < 2;
+}
 
 // ============================================================
 // AUDIO
@@ -426,6 +443,13 @@ const Upload = {
   },
 
   async instant() {
+    // ⛔ 2-CARD LIMIT CHECK
+    if (!canGenerateCard()) {
+      toast('🚫 You have reached the 2-card limit. Delete a card from your collection to generate a new one.', 'error', 5000);
+      SFX.error();
+      return;
+    }
+    
     try {
       getAudio();
       const res = await fetch(`${State.serverUrl}/api/instant-card`, { method:'POST' });
@@ -463,6 +487,14 @@ const Upload = {
 
   async start() {
     if (State.generating || State.files.length === 0) return;
+    
+    // ⛔ 2-CARD LIMIT CHECK
+    if (!canGenerateCard()) {
+      toast('🚫 You have reached the 2-card limit. Delete a card from your collection to generate a new one.', 'error', 5000);
+      SFX.error();
+      return;
+    }
+    
     getAudio();
 
     const usernameInput = document.getElementById('inUsername')?.value?.trim();
@@ -607,7 +639,7 @@ const Upload = {
 function delay(ms) { return new Promise(r => setTimeout(r, ms)); }
 
 // ============================================================
-// COLLECTION — Only show current user's cards
+// COLLECTION — Only show current user's cards + 2-card limit delete
 // ============================================================
 const Collection = {
   activeFilter: 'all',
@@ -618,6 +650,19 @@ const Collection = {
     this.activeFilter = f;
     this.render();
     SFX.click();
+  },
+
+  deleteCard(cardId) {
+    if (!confirm('Delete this card? This will free up a generation slot.')) return;
+    const idx = State.cards.findIndex(c => c.id === cardId);
+    if (idx !== -1) {
+      State.cards.splice(idx, 1);
+      State.save();
+      updateNavStats();
+      this.render();
+      toast('Card deleted. You can now generate a new one!', 'success');
+      SFX.success();
+    }
   },
 
   async render() {
@@ -694,6 +739,7 @@ const Collection = {
             <span>⭐ ${card.score}</span>
             <span class="card-grade-badge">${card.grade}</span>
           </div>
+          <button class="btn-sm btn-delete" style="margin-top:0.5rem;width:100%;font-size:0.7rem;padding:0.3rem" onclick="event.stopPropagation(); Collection.deleteCard('${card.id}')">🗑 Delete</button>
         </div>`;
 
       el.addEventListener('click', () => { Detail.currentCard = card; Navigation.go('detail'); SFX.flip(); });
@@ -1106,7 +1152,7 @@ const Admin = {
           <div class="pending-info">
             <h4>${u.username||'Anonymous'} <span style="font-size:0.75rem;color:var(--text3)">#${u.id}</span></h4>
             <div class="pending-meta">
-              📅 ${Util.fmtDate(u.timestamp)}<br>
+              📅 ${Util.fmtDate(u.timestamp)}<<br>
               📁 ${u.files.length} file(s)
               ${u.profileLink ? `<br>🔗 <a href="${u.profileLink}" target="_blank">${u.profileLink}</a>` : ''}
             </div>
