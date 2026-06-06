@@ -1,6 +1,6 @@
 /**
  * SCROLL DNA — script.js
- * Updated: Auto-receive admin cards + user-only collection + 2-card limit per user
+ * Updated: 2-card limit + HD download + viral share + admin cache + AI rebrand
  */
 
 'use strict';
@@ -48,12 +48,11 @@ const State = {
 };
 
 // ============================================================
-// CARD LIMIT HELPERS
+// CARD LIMIT HELPERS (2 cards per user)
 // ============================================================
 function getUserCardCount() {
   const currentUser = State.currentUsername.toLowerCase().trim();
   if (!currentUser) return State.cards.length;
-  
   return State.cards.filter(c => {
     const cardUser = (c.username || '').toLowerCase().trim();
     return !cardUser || cardUser === currentUser;
@@ -242,7 +241,7 @@ function updateNavStats() {
 }
 
 // ============================================================
-// NAVIGATION — FIXED FOR NEW PAGES
+// NAVIGATION
 // ============================================================
 const Navigation = {
   go(pageId) {
@@ -250,13 +249,11 @@ const Navigation = {
       toast('Generation in progress — please wait', 'info'); return;
     }
     
-    // Hide all pages
     document.querySelectorAll('.page').forEach(p => {
       p.classList.remove('active');
       p.classList.add('hidden');
     });
     
-    // Show target page
     const target = document.getElementById('pg-' + pageId);
     if (!target) {
       console.error('Page not found: pg-' + pageId);
@@ -269,7 +266,6 @@ const Navigation = {
     window.scrollTo({ top: 0, behavior: 'smooth' });
     SFX.click();
 
-    // Init page-specific content
     if (pageId === 'landing')    Landing.init();
     if (pageId === 'collection') Collection.render();
     if (pageId === 'detail')     Detail.render();
@@ -639,7 +635,7 @@ const Upload = {
 function delay(ms) { return new Promise(r => setTimeout(r, ms)); }
 
 // ============================================================
-// COLLECTION — Only show current user's cards + 2-card limit delete
+// COLLECTION — 2-card limit + delete
 // ============================================================
 const Collection = {
   activeFilter: 'all',
@@ -751,7 +747,7 @@ const Collection = {
 window.Collection = Collection;
 
 // ============================================================
-// CARD DETAIL
+// CARD DETAIL — HD Download + Viral Share
 // ============================================================
 const Detail = {
   currentCard: null,
@@ -886,15 +882,17 @@ const Detail = {
     SFX.success();
   },
 
+  // HD DOWNLOAD — Full card capture
   async download() {
     const card = this.currentCard;
     if (!card) return;
+    
     try {
       const tc = document.getElementById('tradingCard');
       if (!tc) throw new Error('no card');
 
       if (!window.html2canvas) {
-        await new Promise((res,rej) => {
+        await new Promise((res, rej) => {
           const s = document.createElement('script');
           s.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js';
           s.onload = res; s.onerror = rej;
@@ -902,58 +900,172 @@ const Detail = {
         });
       }
 
-      toast('Capturing card…','info',2000);
+      toast('Capturing your DNA card…', 'info', 2000);
 
       const wrapper = document.createElement('div');
       wrapper.style.cssText = `
-        position: fixed; top: -9999px; left: -9999px;
-        width: 800px; height: 500px;
-        background: linear-gradient(135deg, #0a0a0f 0%, #111118 50%, #1a1a2e 100%);
-        display: flex; align-items: center; justify-content: center;
-        padding: 60px;
+        position: fixed;
+        top: -9999px;
+        left: -9999px;
+        width: 900px;
+        height: 520px;
+        background: linear-gradient(135deg, #0a0a0f 0%, #111118 40%, #16161f 100%);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 40px;
+        border-radius: 24px;
+        z-index: -1;
       `;
 
       const clone = tc.cloneNode(true);
-      clone.style.transform = 'none';
-      clone.style.boxShadow = `
-        0 0 0 3px rgba(255,255,255,0.15),
-        0 0 0 6px rgba(255,255,255,0.08),
-        0 0 0 9px rgba(255,255,255,0.04),
-        0 30px 100px rgba(0,0,0,0.9),
-        0 0 80px rgba(124,106,255,0.25),
-        inset 0 1px 0 rgba(255,255,255,0.1)
+      clone.style.cssText = `
+        width: 820px;
+        min-height: 440px;
+        transform: none !important;
+        margin: 0;
+        position: relative;
+        box-shadow: 
+          0 0 0 4px rgba(255,255,255,0.12),
+          0 0 0 8px rgba(255,255,255,0.06),
+          0 0 0 12px rgba(255,255,255,0.03),
+          0 30px 100px rgba(0,0,0,0.9),
+          0 0 80px rgba(124,106,255,0.3),
+          inset 0 1px 0 rgba(255,255,255,0.15);
       `;
+
+      clone.querySelectorAll('*').forEach(el => {
+        el.style.transform = 'none';
+        el.style.animation = 'none';
+      });
+
       wrapper.appendChild(clone);
       document.body.appendChild(wrapper);
 
-      const canvas = await window.html2canvas(wrapper, { 
-        backgroundColor: '#0a0a0f', 
-        scale: 3, 
+      const images = wrapper.querySelectorAll('img');
+      await Promise.all(Array.from(images).map(img => {
+        if (img.complete) return Promise.resolve();
+        return new Promise((res) => {
+          img.onload = res;
+          img.onerror = res;
+        });
+      }));
+
+      const canvas = await window.html2canvas(wrapper, {
+        backgroundColor: '#0a0a0f',
+        scale: 3,
         useCORS: true,
         logging: false,
-        width: 800,
-        height: 500,
-        allowTaint: true
+        width: 900,
+        height: 520,
+        allowTaint: true,
+        removeContainer: false,
+        foreignObjectRendering: false
       });
 
       document.body.removeChild(wrapper);
 
       const link = document.createElement('a');
-      link.download = `scroll-dna-${card.name.replace(/\s+/g,'-')}.png`;
-      link.href = canvas.toDataURL('image/png');
+      link.download = `scroll-dna-${card.name.replace(/\s+/g, '-').toLowerCase()}-${card.rarity}.png`;
+      link.href = canvas.toDataURL('image/png', 1.0);
       link.click();
-      toast('Card downloaded! 📥','success');
+
+      toast('✨ Card downloaded! Share it everywhere!', 'success', 4000);
       SFX.success();
-    } catch(e) {
+      confetti(60, ['#7c6aff', '#ff6b9d', '#00d4ff', '#f5a623']);
+
+    } catch (e) {
+      console.error('Download error:', e);
       const data = JSON.stringify(card, null, 2);
-      const blob = new Blob([data],{type:'application/json'});
+      const blob = new Blob([data], { type: 'application/json' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
-      a.href = url; a.download = `scroll-dna-card-${card.id}.json`;
+      a.href = url;
+      a.download = `scroll-dna-card-${card.id}.json`;
       a.click();
       URL.revokeObjectURL(url);
-      toast('Card data downloaded 📥','success');
+      toast('📥 Card data downloaded (image failed)', 'success');
     }
+  },
+
+  // VIRAL SHARE OVERLAY
+  shareViral() {
+    const card = this.currentCard;
+    if (!card) return;
+    
+    const overlay = document.createElement('div');
+    overlay.style.cssText = `
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.95);
+      z-index: 9999;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 2rem;
+      animation: fadeIn 0.3s ease;
+    `;
+    
+    overlay.innerHTML = `
+      <div style="text-align:center; margin-bottom: 2rem;">
+        <h2 style="font-family: var(--font-display); font-size: 1.5rem; margin-bottom: 0.5rem;">
+          ✨ Your ${card.rarity.toUpperCase()} Card is Ready!
+        </h2>
+        <p style="color: var(--text2); font-size: 0.9rem;">
+          Download and share to go viral
+        </p>
+      </div>
+      
+      <div style="display: flex; gap: 1rem; flex-wrap: wrap; justify-content: center;">
+        <button onclick="Detail.download()" style="
+          padding: 1rem 2rem;
+          background: linear-gradient(135deg, var(--primary), var(--accent));
+          border: none;
+          border-radius: var(--radius-lg);
+          color: white;
+          font-weight: 700;
+          font-size: 1rem;
+          display: flex;
+          align-items: center;
+          gap: 0.5rem;
+          cursor: pointer;
+        ">
+          📥 Download HD Card
+        </button>
+        
+        <button onclick="Detail.share()" style="
+          padding: 1rem 2rem;
+          background: var(--bg3);
+          border: 1px solid var(--border);
+          border-radius: var(--radius-lg);
+          color: var(--text);
+          font-weight: 600;
+          font-size: 1rem;
+          display: flex;
+          align-items: center;
+          gap: 0.5rem;
+          cursor: pointer;
+        ">
+          📤 Copy Share Text
+        </button>
+      </div>
+      
+      <button onclick="this.parentElement.remove()" style="
+        margin-top: 2rem;
+        color: var(--text3);
+        background: none;
+        border: none;
+        font-size: 0.9rem;
+        cursor: pointer;
+      ">
+        Close
+      </button>
+    `;
+    
+    document.body.appendChild(overlay);
+    SFX.success();
+    confetti(100);
   },
 
   reroll() {

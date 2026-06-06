@@ -12,7 +12,6 @@
   <link rel="stylesheet" href="styles.css">
   <base target="_blank">
   
-  <!-- ===== DARK ADSENSE STYLES (NON-INTRUSIVE) ===== -->
   <style>
     .ads-dark-wrapper {
       background: #0a0a0f;
@@ -48,7 +47,6 @@
       }
     }
     
-    /* ===== POLICY PAGE STYLES ===== */
     .policy-wrap {
       max-width: 800px;
       margin: 0 auto;
@@ -116,7 +114,6 @@
       border-top: 1px solid var(--border);
     }
     
-    /* Contact form styles */
     .contact-form {
       display: flex;
       flex-direction: column;
@@ -154,7 +151,6 @@
 <body>
 <div id="app">
 
-  <!-- ───── NAVBAR ───── -->
   <nav class="navbar" id="navbar">
     <div class="nav-inner">
       <button class="nav-logo" onclick="Navigation.go('landing')">
@@ -172,7 +168,6 @@
     </div>
   </nav>
 
-  <!-- ───── PROCESSING OVERLAY ───── -->
   <div id="overlay" class="overlay hidden">
     <div class="overlay-box">
       <div class="dna-helix">
@@ -194,10 +189,8 @@
     </div>
   </div>
 
-  <!-- ───── PAGES ───── -->
   <main id="main">
 
-    <!-- ===== LANDING ===== -->
     <div id="pg-landing" class="page active">
 
       <section class="hero">
@@ -278,7 +271,6 @@
         </div>
       </section>
 
-      <!-- SAFE ZONE AD SLOT 1 -->
       <div class="ads-dark-wrapper">
         <ins class="adsbygoogle"
              style="display:block"
@@ -323,7 +315,6 @@
           </div>
         </div>
 
-        <!-- SAFE ZONE AD SLOT 2 -->
         <div class="ads-dark-wrapper" style="max-width:100%; margin-top:24px;">
           <ins class="adsbygoogle"
                style="display:block"
@@ -353,7 +344,6 @@
         </div>
       </section>
 
-      <!-- SAFE ZONE AD SLOT 3 -->
       <div class="ads-dark-wrapper">
         <ins class="adsbygoogle"
              style="display:block"
@@ -370,7 +360,6 @@
       </div>
     </div>
 
-    <!-- ===== UPLOAD ===== -->
     <div id="pg-upload" class="page hidden">
       <div class="upload-wrap">
         <div class="upload-header">
@@ -432,7 +421,6 @@
       </div>
     </div>
 
-    <!-- ===== COLLECTION ===== -->
     <div id="pg-collection" class="page hidden">
       <div class="collection-wrap">
         <div class="col-header">
@@ -456,7 +444,6 @@
       </div>
     </div>
 
-    <!-- ===== CARD DETAIL ===== -->
     <div id="pg-detail" class="page hidden">
       <div class="detail-wrap">
         <button class="back-link" onclick="Navigation.go('collection')">← Back to Collection</button>
@@ -465,12 +452,16 @@
           <div class="detail-panel">
             <div id="detailInfo" class="detail-info"></div>
             <div class="detail-actions">
-              <button class="btn-primary" onclick="Detail.share()">📤 Share Card</button>
-              <button class="btn-ghost" onclick="Detail.download()">📥 Download</button>
+              <button class="btn-primary" onclick="Detail.download()" style="background: linear-gradient(135deg, #ff6b9d, #7c6aff);">
+                ✨ Download HD Card
+              </button>
+              <button class="btn-ghost" onclick="Detail.share()">📤 Share Text</button>
+              <button class="btn-ghost" onclick="Detail.shareViral()" style="border-color: var(--gold); color: var(--gold);">
+                🔥 Go Viral
+              </button>
               <button class="btn-ghost reroll-btn" onclick="Detail.reroll()">🔄 Re-roll <span class="reroll-cost">(50 pts)</span></button>
             </div>
 
-            <!-- SAFE ZONE AD SLOT 4 -->
             <div class="ads-dark-wrapper" style="margin-top: 24px; margin-bottom: 24px;">
               <p style="color: #9ca3af; font-size: 12px; margin-bottom: 12px; text-align: left;">
                 Recommended for your DNA
@@ -492,7 +483,6 @@
       </div>
     </div>
 
-    <!-- ===== ADMIN ===== -->
     <div id="pg-admin" class="page hidden">
       <div class="admin-wrap">
         <h1>🔐 Admin Panel</h1>
@@ -574,7 +564,6 @@
       </div>
     </div>
 
-    <!-- ===== PRIVACY POLICY ===== -->
     <div id="pg-privacy" class="page hidden">
       <div class="policy-wrap">
         <button class="back-link" onclick="Navigation.go('landing')">← Back</button>
@@ -644,7 +633,6 @@
       </div>
     </div>
 
-    <!-- ===== CONTACT ===== -->
     <div id="pg-contact" class="page hidden">
       <div class="policy-wrap">
         <button class="back-link" onclick="Navigation.go('landing')">← Back</button>
@@ -717,7 +705,6 @@
       </div>
     </div>
 
-    <!-- ===== ABOUT ===== -->
     <div id="pg-about" class="page hidden">
       <div class="policy-wrap">
         <button class="back-link" onclick="Navigation.go('landing')">← Back</button>
@@ -782,7 +769,6 @@
       </div>
     </div>
 
-    <!-- ===== TERMS OF SERVICE ===== -->
     <div id="pg-terms" class="page hidden">
       <div class="policy-wrap">
         <button class="back-link" onclick="Navigation.go('landing')">← Back</button>
@@ -848,7 +834,6 @@
 
   </main>
 
-  <!-- ───── FOOTER ───── -->
   <footer class="footer">
     <div class="footer-inner">
       <span class="footer-logo">⬡ Scroll DNA</span>
@@ -865,7 +850,6 @@
     </div>
   </footer>
 
-  <!-- Toast container -->
   <div id="toasts" class="toast-wrap"></div>
 
 </div>
