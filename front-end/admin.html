@@ -275,6 +275,7 @@
       <button class="icon-btn" id="onlineBtn" onclick="App.toggleOnline()" title="Online status">
         <span id="onlineDot" style="width:10px;height:10px;border-radius:50%;background:var(--green);display:block"></span>
       </button>
+      <button class="icon-btn" onclick="App.clearCache()" title="Clear local cache">🗑️</button>
       <button class="icon-btn" onclick="App.logout()" title="Logout">🚪</button>
     </div>
   </header>
@@ -390,8 +391,13 @@ const App = {
   reconnectTimer: null,
   loginAttempts: 0,
 
+  Cache: {
+    get(key) { try { return JSON.parse(localStorage.getItem('sdna_admin_cache_' + key) || 'null'); } catch(e) { return null; } },
+    set(key, val) { localStorage.setItem('sdna_admin_cache_' + key, JSON.stringify(val)); },
+    clear() { ['stats','pending','uploads','cards'].forEach(k => localStorage.removeItem('sdna_admin_cache_' + k)); }
+  },
+
   init() {
-    // Auto-detect server URL if not saved
     if (!this.serverUrl) {
       this.serverUrl = window.location.origin;
     }
@@ -399,6 +405,7 @@ const App = {
 
     if (this.token) { 
       this.showDashboard(); 
+      this.renderFromCache();
       this.connectSSE(); 
       this.loadAll(); 
     }
@@ -410,7 +417,6 @@ const App = {
 
   getApi() { return this.serverUrl; },
 
-  // ── Test Connection ──
   async testConnection() {
     this.serverUrl = document.getElementById('urlInput').value.trim() || window.location.origin;
     localStorage.setItem('sdna_server_url', this.serverUrl);
@@ -432,7 +438,6 @@ const App = {
     btn.textContent = '🔄 Test Connection';
   },
 
-  // ── Auth ──
   async login() {
     const pw = document.getElementById('pwInput').value;
     this.serverUrl = document.getElementById('urlInput').value.trim() || window.location.origin;
@@ -460,6 +465,7 @@ const App = {
         this.token = d.token;
         localStorage.setItem('sdna_admin', d.token);
         this.showDashboard();
+        this.renderFromCache();
         this.connectSSE();
         this.loadAll();
         this.toast('Welcome to DNA Lab', 'success');
@@ -492,7 +498,6 @@ const App = {
     document.getElementById('appFooter').style.display = 'block';
   },
 
-  // ── SSE with query param auth ──
   connectSSE() {
     if (this.sse) this.sse.close();
     if (!this.token) return;
@@ -567,73 +572,116 @@ const App = {
     if (this.activeTab === 'cards') this.loadCards();
   },
 
+  renderFromCache() {
+    const stats = this.Cache.get('stats');
+    if (stats) this.renderStats(stats);
+    const pending = this.Cache.get('pending');
+    if (pending) this.renderPending(pending);
+    const uploads = this.Cache.get('uploads');
+    if (uploads) this.renderUploads(uploads);
+    const cards = this.Cache.get('cards');
+    if (cards) this.renderCards(cards);
+  },
+
+  renderStats(d) {
+    const grid = document.getElementById('statsGrid');
+    grid.innerHTML = [
+      ['Total Uploads', d.totalUploads || 0],
+      ['Total Cards', d.totalCards || 0],
+      ['Pending Review', d.pendingCount || 0],
+      ['AI Cards', d.aiCards || 0]
+    ].map(([lbl, val]) => `
+      <div class="stat-box">
+        <span class="stat-num">${val}</span>
+        <span class="stat-lbl">${lbl}</span>
+      </div>`).join('');
+    const badge = document.getElementById('pendingBadge');
+    if (badge) { badge.textContent = d.pendingCount || 0; badge.classList.toggle('hidden', !d.pendingCount); }
+  },
+
+  renderPending(d) {
+    const wrap = document.getElementById('pendingList');
+    if (!d.pending?.length) { wrap.innerHTML = '<div class="empty"><span class="empty-icon">✅</span>No pending uploads — all caught up!</div>'; return; }
+    wrap.innerHTML = '';
+    d.pending.forEach(u => wrap.appendChild(this.buildUploadCard(u, true)));
+  },
+
+  renderUploads(d) {
+    const wrap = document.getElementById('uploadsList');
+    if (!d.uploads?.length) { wrap.innerHTML = '<div class="empty"><span class="empty-icon">📭</span>No uploads yet</div>'; return; }
+    wrap.innerHTML = '';
+    d.uploads.forEach(u => wrap.appendChild(this.buildUploadCard(u, false)));
+  },
+
+  renderCards(d) {
+    const wrap = document.getElementById('cardsList');
+    if (!d.cards?.length) { wrap.innerHTML = '<div class="empty"><span class="empty-icon">🃏</span>No cards yet</div>'; return; }
+    wrap.innerHTML = '';
+    d.cards.forEach(card => {
+      const rd = card.rarityData || this.getRarityData(card.rarity);
+      const srcClass = 'src-' + (card.source || 'mock');
+      const el = document.createElement('div');
+      el.className = 'card-item';
+      el.innerHTML = `
+        <div class="card-swatch" style="background:${rd.gradient || rd.color || '#4b5563'}">${card.name.charAt(0)}</div>
+        <div class="card-info">
+          <h4>${card.name} <span class="src-tag ${srcClass}">${card.source || '?'}</span></h4>
+          <p>${card.rarity.toUpperCase()} · ⭐${card.score} · ${card.grade} · @${card.username || '?'}</p>
+        </div>
+        <button class="btn-sm btn-delete" onclick="App.deleteCard('${card.id}')">Delete</button>`;
+      wrap.appendChild(el);
+    });
+  },
+
   async loadStats() {
     try {
       const res = await fetch(`${this.serverUrl}/api/admin/stats`, { headers: { 'x-admin-auth': this.token } });
       const d = await res.json();
-      const grid = document.getElementById('statsGrid');
-      grid.innerHTML = [
-        ['Total Uploads', d.totalUploads || 0],
-        ['Total Cards', d.totalCards || 0],
-        ['Pending Review', d.pendingCount || 0],
-        ['AI Cards', d.aiCards || 0]
-      ].map(([lbl, val]) => `
-        <div class="stat-box">
-          <span class="stat-num">${val}</span>
-          <span class="stat-lbl">${lbl}</span>
-        </div>`).join('');
-      const badge = document.getElementById('pendingBadge');
-      if (badge) { badge.textContent = d.pendingCount || 0; badge.classList.toggle('hidden', !d.pendingCount); }
+      this.Cache.set('stats', d);
+      this.renderStats(d);
     } catch(e) {}
   },
 
   async loadPending() {
     const wrap = document.getElementById('pendingList');
-    wrap.innerHTML = '<div class="empty"><span class="empty-icon loading-dots">Loading</span></div>';
+    const cached = this.Cache.get('pending');
+    if (!cached) wrap.innerHTML = '<div class="empty"><span class="empty-icon loading-dots">Loading</span></div>';
     try {
       const res = await fetch(`${this.serverUrl}/api/admin/pending`, { headers: { 'x-admin-auth': this.token } });
       const d = await res.json();
-      if (!d.pending?.length) { wrap.innerHTML = '<div class="empty"><span class="empty-icon">✅</span>No pending uploads — all caught up!</div>'; return; }
-      wrap.innerHTML = '';
-      d.pending.forEach(u => wrap.appendChild(this.buildUploadCard(u, true)));
-    } catch(e) { wrap.innerHTML = '<div class="empty"><span class="empty-icon">⚠️</span>Error loading queue</div>'; }
+      this.Cache.set('pending', d);
+      this.renderPending(d);
+    } catch(e) { 
+      if (!cached) wrap.innerHTML = '<div class="empty"><span class="empty-icon">⚠️</span>Error loading queue</div>'; 
+    }
   },
 
   async loadUploads() {
     const wrap = document.getElementById('uploadsList');
-    wrap.innerHTML = '<div class="empty"><span class="empty-icon loading-dots">Loading</span></div>';
+    const cached = this.Cache.get('uploads');
+    if (!cached) wrap.innerHTML = '<div class="empty"><span class="empty-icon loading-dots">Loading</span></div>';
     try {
       const res = await fetch(`${this.serverUrl}/api/admin/uploads`, { headers: { 'x-admin-auth': this.token } });
       const d = await res.json();
-      if (!d.uploads?.length) { wrap.innerHTML = '<div class="empty"><span class="empty-icon">📭</span>No uploads yet</div>'; return; }
-      wrap.innerHTML = '';
-      d.uploads.forEach(u => wrap.appendChild(this.buildUploadCard(u, false)));
-    } catch(e) { wrap.innerHTML = '<div class="empty"><span class="empty-icon">⚠️</span>Error loading uploads</div>'; }
+      this.Cache.set('uploads', d);
+      this.renderUploads(d);
+    } catch(e) { 
+      if (!cached) wrap.innerHTML = '<div class="empty"><span class="empty-icon">⚠️</span>Error loading uploads</div>'; 
+    }
   },
 
   async loadCards() {
     const wrap = document.getElementById('cardsList');
-    wrap.innerHTML = '<div class="empty"><span class="empty-icon loading-dots">Loading</span></div>';
+    const cached = this.Cache.get('cards');
+    if (!cached) wrap.innerHTML = '<div class="empty"><span class="empty-icon loading-dots">Loading</span></div>';
     try {
       const res = await fetch(`${this.serverUrl}/api/admin/cards`, { headers: { 'x-admin-auth': this.token } });
       const d = await res.json();
-      if (!d.cards?.length) { wrap.innerHTML = '<div class="empty"><span class="empty-icon">🃏</span>No cards yet</div>'; return; }
-      wrap.innerHTML = '';
-      d.cards.forEach(card => {
-        const rd = card.rarityData || this.getRarityData(card.rarity);
-        const srcClass = 'src-' + (card.source || 'mock');
-        const el = document.createElement('div');
-        el.className = 'card-item';
-        el.innerHTML = `
-          <div class="card-swatch" style="background:${rd.gradient || rd.color || '#4b5563'}">${card.name.charAt(0)}</div>
-          <div class="card-info">
-            <h4>${card.name} <span class="src-tag ${srcClass}">${card.source || '?'}</span></h4>
-            <p>${card.rarity.toUpperCase()} · ⭐${card.score} · ${card.grade} · @${card.username || '?'}</p>
-          </div>
-          <button class="btn-sm btn-delete" onclick="App.deleteCard('${card.id}')">Delete</button>`;
-        wrap.appendChild(el);
-      });
-    } catch(e) { wrap.innerHTML = '<div class="empty"><span class="empty-icon">⚠️</span>Error loading cards</div>'; }
+      this.Cache.set('cards', d);
+      this.renderCards(d);
+    } catch(e) { 
+      if (!cached) wrap.innerHTML = '<div class="empty"><span class="empty-icon">⚠️</span>Error loading cards</div>'; 
+    }
   },
 
   buildUploadCard(u, isPending) {
@@ -796,6 +844,16 @@ const App = {
 
   openModal(src) { document.getElementById('modalImg').src = src; document.getElementById('imgModal').classList.add('open'); },
   closeModal() { document.getElementById('imgModal').classList.remove('open'); },
+
+  clearCache() {
+    if (!confirm('Clear all locally cached admin data? This will not delete server data.')) return;
+    this.Cache.clear();
+    document.getElementById('statsGrid').innerHTML = '<div class="stat-box skeleton" style="height:80px"></div><div class="stat-box skeleton" style="height:80px"></div><div class="stat-box skeleton" style="height:80px"></div><div class="stat-box skeleton" style="height:80px"></div>';
+    document.getElementById('pendingList').innerHTML = '<div class="empty"><span class="empty-icon">📭</span>No data cached. Refresh to load from server.</div>';
+    document.getElementById('uploadsList').innerHTML = '<div class="empty"><span class="empty-icon">📭</span>No data cached. Refresh to load from server.</div>';
+    document.getElementById('cardsList').innerHTML = '<div class="empty"><span class="empty-icon">📭</span>No data cached. Refresh to load from server.</div>';
+    this.toast('Local cache cleared', 'info');
+  },
 
   toggleSound() { this.sound = !this.sound; localStorage.setItem('sdna_admin_sound', this.sound); this.updateSoundBtn(); this.toast(this.sound ? 'Sound on' : 'Sound off', 'info'); },
   updateSoundBtn() { const btn = document.getElementById('soundBtn'); if (btn) btn.textContent = this.sound ? '🔊' : '🔇'; },
